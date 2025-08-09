@@ -2,7 +2,12 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 exports.getAllUsers = async () => {
-  return prisma.user.findMany();
+    try {
+        
+        return prisma.users.findMany();
+    } catch (error) {
+        console.log("has problem:", error);
+    }
 };
 
 exports.createUser = async (data) => {
