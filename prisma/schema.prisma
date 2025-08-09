@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // URL do NeonDB no .env
+}
+
+model users {
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password_hash String
+  role          String?
+  created_at    DateTime  @default(now())
+
+  queries       queries[]
+  history       history[]
+  exports       exports[]
+  suggestions   suggestions[]
+  access_logs   access_logs[]
+}
+
+model queries {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  question_text String?
+  created_at    DateTime  @default(now())
+
+  user          users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  results       results[]
+  history       history[]
+}
+
+model results {
+  id           Int       @id @default(autoincrement())
+  query_id     Int
+  result_type  String?
+  content      Json?
+  created_at   DateTime  @default(now())
+
+  query        queries   @relation(fields: [query_id], references: [id], onDelete: Cascade)
+}
+
+model history {
+  id              Int       @id @default(autoincrement())
+  user_id         Int
+  query_id        Int?
+  success         Boolean?
+  execution_time  Float?
+  created_at      DateTime  @default(now())
+
+  user            users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  query           queries?  @relation(fields: [query_id], references: [id], onDelete: SetNull)
+}
+
+model exports {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  file_type   String?
+  file_path   String?
+  created_at  DateTime  @default(now())
+
+  user        users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model suggestions {
+  id          Int       @id @default(autoincrement())
+  user_id     Int
+  content     String?
+  source      String?
+  created_at  DateTime  @default(now())
+
+  user        users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model access_logs {
+  id          Int       @id @default(autoincrement())
+  user_id     Int?
+  action      String?
+  ip_address  String?
+  created_at  DateTime  @default(now())
+
+  user        users?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+}
