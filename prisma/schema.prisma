@@ -15,11 +15,14 @@ model users {
   role          String?
   created_at    DateTime  @default(now())
 
-  queries       queries[]
-  history       history[]
-  exports       exports[]
-  suggestions   suggestions[]
-  access_logs   access_logs[]
+  queries           queries[]
+  history           history[]
+  exports           exports[]
+  suggestions       suggestions[]
+  access_logs       access_logs[]
+  ai_chat_sessions  ai_chat_sessions[]
+  ai_interactions   ai_interactions[]
+  ai_insights       ai_insights[]
 }
 
 model queries {
@@ -83,4 +86,87 @@ model access_logs {
   created_at  DateTime  @default(now())
 
   user        users?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+}
+
+// IA Chat Sessions - Gerencia sessões de conversa com IA
+model ai_chat_sessions {
+  id             Int       @id @default(autoincrement())
+  user_id        Int
+  session_token  String    @unique
+  status         String    @default("active") // active, completed, archived
+  context_data   Json?     // Contexto da conversa
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  user           users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  interactions   ai_interactions[]
+}
+
+// IA Interactions - Armazena cada interação individual
+model ai_interactions {
+  id                Int       @id @default(autoincrement())
+  session_id        Int
+  user_id           Int
+  interaction_type  String    // nl2sql, sql2nl, insight, conversation
+  input_text        String    // Texto de entrada do usuário
+  input_language    String    @default("pt-BR") // Idioma da entrada
+  processed_query   String?   // SQL gerado ou texto processado
+  ai_response       Json?     // Resposta completa da IA
+  execution_status  String    @default("pending") // pending, success, error, fallback
+  execution_time_ms Int?      // Tempo de execução em milissegundos
+  confidence_score  Float?    // Score de confiança da IA (0-1)
+  error_message     String?   // Mensagem de erro se houver
+  fallback_used     Boolean   @default(false)
+  version           String    @default("1.0") // Versionamento das interações
+  metadata          Json?     // Metadados adicionais
+  created_at        DateTime  @default(now())
+
+  session           ai_chat_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  user              users            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  insights          ai_insights[]
+}
+
+// IA Insights - Armazena insights e análises preditivas
+model ai_insights {
+  id               Int       @id @default(autoincrement())
+  interaction_id   Int?
+  user_id          Int
+  insight_type     String    // trend_analysis, prediction, recommendation, pattern_detection
+  title            String
+  description      String
+  data_analysis    Json      // Dados da análise
+  confidence_level String    // high, medium, low
+  impact_score     Float?    // Score de impacto (0-1)
+  status           String    @default("active") // active, archived, dismissed
+  expires_at       DateTime? // Data de expiração do insight
+  created_at       DateTime  @default(now())
+
+  interaction      ai_interactions? @relation(fields: [interaction_id], references: [id], onDelete: SetNull)
+  user             users            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// Fallback Responses - Sistema de fallback para consultas não compreendidas
+model ai_fallbacks {
+  id                 Int       @id @default(autoincrement())
+  trigger_pattern    String    @unique // Padrão que ativou o fallback (único)
+  fallback_type      String    // no_understanding, low_confidence, error, timeout
+  response_template  String    // Template de resposta
+  escalation_level   Int       @default(1) // Nível de escalação (1-5)
+  is_active          Boolean   @default(true)
+  usage_count        Int       @default(0)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+}
+
+// Sistema de cache para respostas da IA
+model ai_response_cache {
+  id             Int       @id @default(autoincrement())
+  input_hash     String    @unique // Hash da entrada para cache
+  input_text     String
+  response_data  Json      // Resposta cacheada
+  interaction_type String  // Tipo de interação
+  hit_count      Int       @default(1)
+  expires_at     DateTime
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
 }
