@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon src/app-test.js",
+    "start": "nodemon src/app.js",
     "dev": "NODE_ENV=development nodemon src/server.js",
     "prod": "NODE_ENV=production node src/server.js",
     "seed": "node prisma/seed.js",
