@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 class AIService {
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     this.cacheExpirationHours = 24; // Cache válido por 24 horas
   }
 
@@ -108,7 +108,7 @@ class AIService {
         response: text,
         executionTime,
         metadata: {
-          model: 'gemini-pro',
+          model: 'gemini-2.0-flash-lite',
           timestamp: new Date().toISOString(),
           promptLength: prompt.length,
           responseLength: text.length,
