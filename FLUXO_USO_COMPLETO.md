@@ -1,8 +1,8 @@
-# Fluxo de Uso Completo da Plataforma SmartBI Assistant
+# Fluxo de Uso Completo da Plataforma SmartBI Assistant (Atualizado)
 
 ```mermaid
 flowchart TD
-    A[Usuário Acessa Sistema] --> B{Usuário Registrado?}
+    A[Usuário acessa sistema] --> B{Registrado?}
     B -->|Não| C[Registro via /auth/register]
     B -->|Sim| D[Login via /auth/login]
     C --> D
@@ -15,115 +15,91 @@ flowchart TD
     F --> J[Ver Histórico]
     F --> K[Exportar Dados]
     F --> L[Ver Sugestões]
+    F --> M[Gerenciar Fallbacks (admin)]
     
-    %% Fluxo de Configuração de Bancos
+    %% Configuração de Bancos
     G --> G1[POST /exdatabase]
-    G1 --> G2[Cadastra: nome, url?, schema*]
+    G1 --> G2[Validação de schema]
     G2 --> G3[Lista Bancos: GET /exdatabase]
+    G3 --> G4[Admin: Testa conexão /exdatabase/:id/test]
+    G3 --> G5[Admin: Executa query /exdatabase/:id/execute]
+    G3 --> G6[Consulta schema /exdatabase/:id/schema]
     
-    %% Fluxo de Conversa IA
+    %% Conversa IA
     H --> H1[POST /conversation/start]
     H1 --> H2[Recebe sessionId]
     H2 --> H3[POST /conversation/message]
     H3 --> H4[IA Processa Mensagem]
     H4 --> H5{Tipo de Resposta?}
     H5 -->|NL2SQL| H6[Gera SQL]
-    H5 -->|SQL2NL| H7[Explica SQL]
-    H5 -->|Conversa| H8[Resposta Natural]
-    H5 -->|Insight| H9[POST /conversation/insights]
-    H6 --> H10[Armazena Interação]
-    H7 --> H10
-    H8 --> H10
-    H9 --> H10
-    H10 --> H11{Continuar Conversa?}
-    H11 -->|Sim| H3
-    H11 -->|Não| H12[PUT /conversation/:sessionId/end]
+    H6 --> H7[Seleciona banco]
+    H7 --> H8[Executa SQL (SELECT) no banco]
+    H8 --> H9[Retorna dados formatados para tabela]
+    H5 -->|SQL2NL| H10[Explica SQL]
+    H5 -->|Conversa| H11[Resposta Natural]
+    H5 -->|Insight| H12[POST /conversation/insights]
+    H9 --> H13{Exibir como?}
+    H13 -->|Tabela| H14[Frontend exibe tabela]
+    H13 -->|Dashboard| H15[Frontend exibe métricas]
+    H13 -->|Gráfico| H16[Frontend exibe gráfico]
+    H10 --> H17[Exibe explicação]
+    H11 --> H18[Exibe resposta]
+    H12 --> H19[Exibe insight]
+    H14 --> H20[Usuário interage]
+    H15 --> H20
+    H16 --> H20
+    H17 --> H20
+    H18 --> H20
+    H19 --> H20
+    H20 --> H3
     
-    %% Fluxo de Consultas Diretas
+    %% Consultas Diretas
     I --> I1[POST /queries]
     I1 --> I2[Processa Pergunta]
     I2 --> I3[Gera Resultado]
     I3 --> I4[POST /results]
     I4 --> I5[Salva no Histórico]
     
-    %% Fluxo de Histórico
+    %% Histórico
     J --> J1[GET /history]
     J1 --> J2[Lista Consultas Anteriores]
     J2 --> J3[GET /conversation/:sessionId/history]
     
-    %% Fluxo de Exportação
+    %% Exportação
     K --> K1[POST /exports]
     K1 --> K2[Gera Arquivo]
     K2 --> K3[Download]
     
-    %% Fluxo de Sugestões
+    %% Sugestões
     L --> L1[GET /suggestions]
     L1 --> L2[Mostra Sugestões IA]
     
+    %% Fallbacks (admin)
+    M --> M1[GET/POST/PUT/DELETE /fallbacks]
+    M1 --> M2[Gerencia respostas de fallback]
+    
     %% Todos os fluxos registram logs
-    G1 --> M[POST /access-logs]
-    H1 --> M
-    I1 --> M
-    J1 --> M
-    K1 --> M
-    L1 --> M
+    G1 --> N[POST /access-logs]
+    H1 --> N
+    I1 --> N
+    J1 --> N
+    K1 --> N
+    L1 --> N
+    M1 --> N
     
     style B fill:#f9f
     style H4 fill:#bbf
-    style I2 fill:#bbf
+    style H9 fill:#bbf
+    style H13 fill:#bbf
+    style M fill:#faa
 ```
 
-## Análise do Fluxo de Uso
+## Pontos resolvidos
+- Integração real com bancos externos (testar, executar, schema)
+- Seleção de banco para NL2SQL
+- Retorno de dados prontos para tabela, dashboard ou gráfico
+- Permissões admin/user
+- Gerenciamento de fallbacks
+- Validação de schema
 
-### ✅ Pontos que fazem sentido:
-1. **Autenticação sequencial**: Registro → Login → Token
-2. **Sessões de conversa**: Início → Mensagens → Fim
-3. **Múltiplos tipos de interação**: NL2SQL, SQL2NL, Conversa, Insights
-4. **Persistência**: Histórico, logs de acesso, resultados
-5. **Funcionalidades auxiliares**: Exportação, sugestões
-
-### ⚠️ Pontos que NÃO fazem sentido ou faltam:
-
-#### 1. **Integração com Bancos Externos**
-- ❌ `/exdatabase` apenas **cadastra** bancos, mas não há:
-  - Rota para **testar conexão**
-  - Rota para **executar queries** nos bancos externos
-  - Validação se o schema fornecido está correto
-  - Como a IA acessa esses bancos para gerar SQL real
-
-#### 2. **Fluxo de NL2SQL Incompleto**
-- ❌ IA gera SQL, mas **onde executa**?
-- ❌ Como escolhe qual banco usar?
-- ❌ Como retorna os dados reais?
-
-#### 3. **Validação de Schema**
-- ❌ Campo `schema` é obrigatório, mas não há validação
-- ❌ Como a IA conhece as tabelas/colunas disponíveis?
-
-#### 4. **Permissões e Segurança**
-- ❌ Não há diferentes níveis de usuário
-- ❌ Todos acessam todos os bancos?
-- ❌ Como garantir que queries são read-only?
-
-#### 5. **Fallback e Tratamento de Erros**
-- ❌ Existe tabela `ai_fallbacks`, mas não há rotas para gerenciá-la
-- ❌ Como configura respostas de fallback?
-
-### 💡 Sugestões para completar o fluxo:
-
-1. **Adicionar rotas em `/exdatabase`**:
-   - `POST /:id/test` - Testar conexão
-   - `POST /:id/execute` - Executar query
-   - `GET /:id/schema` - Obter estrutura das tabelas
-
-2. **Implementar seleção de banco**:
-   - Permitir usuário escolher banco na conversa
-   - IA sugerir banco baseado no contexto
-
-3. **Adicionar rotas de configuração**:
-   - `/admin/fallbacks` - Gerenciar respostas de fallback
-   - `/admin/users` - Gerenciar permissões
-
-4. **Melhorar validação**:
-   - Validar schema ao cadastrar banco
-   - Verificar se queries são read-only
+> Este fluxograma representa o fluxo completo e atualizado do backend, incluindo os novos recursos implementados.
