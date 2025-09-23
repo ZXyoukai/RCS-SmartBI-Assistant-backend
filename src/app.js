@@ -13,6 +13,7 @@ const historyRoutes = require('./routes/historyRoutes');
 const exportsRoutes = require('./routes/exportsRoutes');
 const suggestionsRoutes = require('./routes/suggestionsRoutes');
 const accessLogsRoutes = require('./routes/accessLogsRoutes');
+const associatedDatabasesRoutes = require('./routes/associatedDatabasesRoutes');
 
 // Middleware básico
 app.use(cors());
@@ -39,6 +40,7 @@ app.use('/history', historyRoutes);
 app.use('/exports', exportsRoutes);
 app.use('/suggestions', suggestionsRoutes);
 app.use('/access-logs', accessLogsRoutes);
+app.use('/exdatabase', associatedDatabasesRoutes);
 
 
 app.listen(PORT, () => {
