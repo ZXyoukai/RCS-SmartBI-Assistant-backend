@@ -2,8 +2,8 @@
 
 ```mermaid
 graph TD
-    A[Usuário] -->|Autentica| B[/auth]
-    B -->|Token| C[Rotas Protegidas]
+    A[Usuário] --> B[/auth]
+    B --> C[Rotas Protegidas]
     C --> D[/users]
     C --> E[/conversation]
     C --> F[/queries]
