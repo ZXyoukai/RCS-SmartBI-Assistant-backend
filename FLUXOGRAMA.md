@@ -2,17 +2,17 @@
 
 ```mermaid
 graph TD
-    A[Usuário] --> B[/auth]
+    A[Usuário] --> B[/Auth/]
     B --> C[Rotas Protegidas]
-    C --> D[/users]
-    C --> E[/conversation]
-    C --> F[/queries]
-    C --> G[/results]
-    C --> H[/history]
-    C --> I[/exports]
-    C --> J[/suggestions]
-    C --> K[/access-logs]
-    C --> L[/exdatabase]
+    C --> D[/Users/]
+    C --> E[/Conversation/]
+    C --> F[/Queries/]
+    C --> G[/Results/]
+    C --> H[/History/]
+    C --> I[/Exports/]
+    C --> J[/Suggestions/]
+    C --> K[/Access-Logs/]
+    C --> L[/ExDatabase/]
     D --> M[Controller/Service]
     E --> N[Controller/Service]
     F --> O[Controller/Service]
@@ -32,6 +32,7 @@ graph TD
     T --> V
     U --> V
     V[(Banco de Dados)]
+
 ```
 
 ## Pontos não totalmente claros
