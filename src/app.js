@@ -1,4 +1,5 @@
 require('dotenv').config();
+const PORT = process.env.PORT || 3001;
 const express = require('express');
 const cors = require('cors');
 const app = express();
@@ -40,9 +41,8 @@ app.use('/suggestions', suggestionsRoutes);
 app.use('/access-logs', accessLogsRoutes);
 
 
-const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server on port ${PORT}`);
 });
 
 module.exports = app;
