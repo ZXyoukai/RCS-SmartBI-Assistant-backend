@@ -166,7 +166,9 @@ Content-Type: application/json
 {
   "query": "Mostrar todos os usuários criados hoje",
   "sessionId": 123,
-  "language": "pt-BR"
+  "language": "pt-BR",
+  "databaseId": 1, // Novo: seleciona banco associado
+  "viewType": "table" // Opcional: table, dashboard, chart
 }
 ```
 
@@ -182,7 +184,14 @@ Content-Type: application/json
     "interactionId": 456,
     "executionTime": 1200,
     "fromCache": false,
-    "fallbackUsed": false
+    "fallbackUsed": false,
+    "queryResult": {
+      "type": "table",
+      "columns": ["id", "name", "email", "created_at"],
+      "rows": [
+        { "id": 1, "name": "João", "email": "joao@exemplo.com", "created_at": "2023-09-23T10:00:00Z" }
+      ]
+    }
   }
 }
 ```
@@ -513,6 +522,61 @@ Content-Type: application/json
 {
   "status": "archived"
 }
+```
+
+### 🗄️ Bancos Associados (`/exdatabase`)
+
+#### Cadastrar Banco
+```http
+POST /exdatabase
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Banco BI",
+  "url": "postgres://user:pass@host:5432/dbname",
+  "schema": { "users": ["id", "name", "email"] },
+  "description": "Banco de dados de BI read-only"
+}
+```
+
+#### Testar Conexão (admin)
+```http
+POST /exdatabase/:id/test
+Authorization: Bearer <token>
+```
+
+#### Executar Query Read-Only (admin)
+```http
+POST /exdatabase/:id/execute
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "query": "SELECT * FROM users LIMIT 10"
+}
+```
+
+#### Consultar Schema
+```http
+GET /exdatabase/:id/schema
+Authorization: Bearer <token>
+```
+
+### 🛡️ Fallbacks (admin)
+
+#### Listar Fallbacks
+```http
+GET /fallbacks
+Authorization: Bearer <token>
+```
+
+#### Criar/Atualizar/Deletar Fallback
+```http
+POST /fallbacks
+PUT /fallbacks/:id
+DELETE /fallbacks/:id
+Authorization: Bearer <token>
 ```
 
 ### 🔍 Consultas (`/queries`)
