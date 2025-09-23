@@ -1,8 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-
 const app = express();
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const aiRoutes = require('./routes/aiRoutes');
+const conversationRoutes = require('./routes/conversationRoutes');
+const queryRoutes = require('./routes/queryRoutes');
+const resultsRoutes = require('./routes/resultsRoutes');
+const historyRoutes = require('./routes/historyRoutes');
+const exportsRoutes = require('./routes/exportsRoutes');
+const suggestionsRoutes = require('./routes/suggestionsRoutes');
+const accessLogsRoutes = require('./routes/accessLogsRoutes');
 
 // Middleware básico
 app.use(cors());
@@ -18,16 +27,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const aiRoutes = require('./routes/aiRoutes');
-const conversationRoutes = require('./routes/conversationRoutes');
-const queryRoutes = require('./routes/queryRoutes');
-const resultsRoutes = require('./routes/resultsRoutes');
-const historyRoutes = require('./routes/historyRoutes');
-const exportsRoutes = require('./routes/exportsRoutes');
-const suggestionsRoutes = require('./routes/suggestionsRoutes');
-const accessLogsRoutes = require('./routes/accessLogsRoutes');
 
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
