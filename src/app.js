@@ -14,6 +14,8 @@ const exportsRoutes = require('./routes/exportsRoutes');
 const suggestionsRoutes = require('./routes/suggestionsRoutes');
 const accessLogsRoutes = require('./routes/accessLogsRoutes');
 const associatedDatabasesRoutes = require('./routes/associatedDatabasesRoutes');
+const exdatabaseExtraRoutes = require('./routes/exdatabaseExtraRoutes');
+const fallbacksRoutes = require('./routes/fallbacksRoutes');
 
 // Middleware básico
 app.use(cors());
@@ -41,6 +43,8 @@ app.use('/exports', exportsRoutes);
 app.use('/suggestions', suggestionsRoutes);
 app.use('/access-logs', accessLogsRoutes);
 app.use('/exdatabase', associatedDatabasesRoutes);
+app.use('/exdatabase', exdatabaseExtraRoutes);
+app.use('/fallbacks', fallbacksRoutes);
 
 
 app.listen(PORT, () => {

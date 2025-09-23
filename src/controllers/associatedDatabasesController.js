@@ -8,8 +8,18 @@ module.exports = {
       if (!schema || !name) {
         return res.status(400).json({ error: 'Schema e nome são obrigatórios.' });
       }
+      // Validação simples do schema: deve ser um JSON válido com pelo menos uma tabela
+      let schemaObj;
+      try {
+        schemaObj = typeof schema === 'string' ? JSON.parse(schema) : schema;
+        if (!schemaObj || typeof schemaObj !== 'object' || !Object.keys(schemaObj).length) {
+          return res.status(400).json({ error: 'Schema deve ser um objeto JSON com ao menos uma tabela.' });
+        }
+      } catch (e) {
+        return res.status(400).json({ error: 'Schema inválido. Deve ser JSON.' });
+      }
       const db = await prisma.associated_databases.create({
-        data: { name, url, schema, description }
+        data: { name, url, schema: JSON.stringify(schemaObj), description }
       });
       res.status(201).json(db);
     } catch (error) {

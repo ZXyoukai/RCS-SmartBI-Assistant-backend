@@ -10,7 +10,7 @@ class AIController {
    */
   async convertNLToSQL(req, res) {
     try {
-      const { query, sessionId, language = 'pt-BR' } = req.body;
+      const { query, sessionId, language = 'pt-BR', databaseId } = req.body;
       const userId = req.user.id;
 
       // Validações
@@ -42,8 +42,16 @@ class AIController {
         activeSessionId = newSession.id;
       }
 
-      // Processa conversão
-      const result = await nl2sqlService.convertNLToSQL(query, userId, activeSessionId);
+      // Seleção do banco
+      let dbSchema = null;
+      if (databaseId) {
+        const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
+        if (!db) return res.status(400).json({ success: false, error: 'Banco selecionado não encontrado.' });
+        dbSchema = db.schema;
+      }
+
+      // Processa conversão, passando schema se disponível
+      const result = await nl2sqlService.convertNLToSQL(query, userId, activeSessionId, dbSchema);
 
       // Salva interação no banco
       const interaction = await prisma.ai_interactions.create({
@@ -74,6 +82,30 @@ class AIController {
         }
       });
 
+      // Executa o SQL gerado se banco selecionado e query for SELECT
+      let queryResult = null;
+      if (databaseId && result.sql && /^\s*SELECT/i.test(result.sql)) {
+        const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
+        if (db && db.url) {
+          try {
+            const { executeReadOnlyQuery } = require('../services/externalDbService');
+            const rows = await executeReadOnlyQuery(db.url, result.sql);
+            // Formatação para tabela
+            if (rows && rows.length > 0) {
+              queryResult = {
+                type: 'table',
+                columns: Object.keys(rows[0]),
+                rows
+              };
+            } else {
+              queryResult = { type: 'table', columns: [], rows: [] };
+            }
+          } catch (err) {
+            queryResult = { error: 'Erro ao executar SQL: ' + err.message };
+          }
+        }
+      }
+
       res.json({
         success: true,
         data: {
@@ -84,7 +116,8 @@ class AIController {
           interactionId: interaction.id,
           executionTime: result.executionTime,
           fromCache: result.fromCache || false,
-          fallbackUsed: result.fallbackUsed || false
+          fallbackUsed: result.fallbackUsed || false,
+          queryResult
         }
       });
 
