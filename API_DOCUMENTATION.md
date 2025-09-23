@@ -1,6 +1,6 @@
-# 🤖 SmartBI Assistant API - Documentação Completa
+# SmartBI Assistant API - Documentação Completa
 
-## 📋 Índice
+## Índice
 - [Visão Geral](#visão-geral)
 - [Configuração](#configuração)
 - [Autenticação](#autenticação)
@@ -10,25 +10,25 @@
 - [Exemplos de Uso](#exemplos-de-uso)
 - [Tratamento de Erros](#tratamento-de-erros)
 
-## 🎯 Visão Geral
+## Visão Geral
 
 A **SmartBI Assistant API** é uma plataforma robusta de Business Intelligence que integra inteligência artificial para conversão de linguagem natural para SQL, análise conversacional, geração de insights e análises preditivas.
 
 ### Principais Funcionalidades:
-- 🔄 **Conversão NL-to-SQL/SQL-to-NL** com Gemini AI
-- 💬 **Conversação inteligente** com contexto
-- 📊 **Geração automática de insights**
-- 🔮 **Análises preditivas**
-- 🛡️ **Sistema de fallback robusto**
-- ⚡ **Cache inteligente de respostas**
-- 📈 **Métricas e monitoramento**
+- **Conversão NL-to-SQL/SQL-to-NL** com Gemini AI
+- **Conversação inteligente** com contexto
+- **Geração automática de insights**
+- **Análises preditivas**
+- **Sistema de fallback robusto**
+- **Cache inteligente de respostas**
+- **Métricas e monitoramento**
 
 ### Base URL:
 ```
 http://localhost:3001/api
 ```
 
-## ⚙️ Configuração
+##  Configuração
 
 ### Pré-requisitos:
 - Node.js 18+
@@ -67,7 +67,7 @@ NODE_ENV="development"
 FRONTEND_URL="http://localhost:3000"
 ```
 
-## 🔐 Autenticação
+## Autenticação
 
 A API usa **JWT (JSON Web Tokens)** para autenticação.
 
@@ -87,9 +87,9 @@ Content-Type: application/json
 }
 ```
 
-## 🛣️ Endpoints da API
+## Endpoints da API
 
-### 🔐 Autenticação (`/auth`)
+### Autenticação (`/auth`)
 
 #### Registrar Usuário
 ```http
@@ -130,7 +130,7 @@ Content-Type: application/json
 }
 ```
 
-### 👥 Usuários (`/users`)
+### Usuários (`/users`)
 
 #### Listar Usuários
 ```http
@@ -155,7 +155,7 @@ Content-Type: application/json
 }
 ```
 
-### 🤖 Inteligência Artificial (`/ai`)
+### Inteligência Artificial (`/ai`)
 
 #### Converter Linguagem Natural para SQL
 ```http
@@ -342,7 +342,7 @@ Content-Type: application/json
 }
 ```
 
-### 💬 Conversação (`/conversation`)
+### Conversação (`/conversation`)
 
 #### Iniciar Sessão de Conversa
 ```http
@@ -524,7 +524,7 @@ Content-Type: application/json
 }
 ```
 
-### 🗄️ Bancos Associados (`/exdatabase`)
+### Bancos Associados (`/exdatabase`)
 
 #### Cadastrar Banco
 ```http
@@ -563,7 +563,7 @@ GET /exdatabase/:id/schema
 Authorization: Bearer <token>
 ```
 
-### 🛡️ Fallbacks (admin)
+### Fallbacks (admin)
 
 #### Listar Fallbacks
 ```http
@@ -579,7 +579,7 @@ DELETE /fallbacks/:id
 Authorization: Bearer <token>
 ```
 
-### 🔍 Consultas (`/queries`)
+### Consultas (`/queries`)
 
 #### Listar Consultas
 ```http
@@ -599,7 +599,7 @@ DELETE /queries/:id
 Authorization: Bearer <token>
 ```
 
-### 📊 Resultados (`/results`)
+### Resultados (`/results`)
 
 #### Obter Resultados por Query
 ```http
@@ -613,7 +613,7 @@ GET /results/:id
 Authorization: Bearer <token>
 ```
 
-### 📈 Histórico (`/history`)
+### Histórico (`/history`)
 
 #### Listar Histórico
 ```http
@@ -627,7 +627,7 @@ GET /history/:id
 Authorization: Bearer <token>
 ```
 
-### 📤 Exports (`/exports`)
+### Exports (`/exports`)
 
 #### Listar Exports
 ```http
@@ -635,7 +635,7 @@ GET /exports
 Authorization: Bearer <token>
 ```
 
-### 💡 Sugestões (`/suggestions`)
+### Sugestões (`/suggestions`)
 
 #### Listar Sugestões
 ```http
@@ -643,7 +643,7 @@ GET /suggestions
 Authorization: Bearer <token>
 ```
 
-### 📋 Access Logs (`/access-logs`)
+### Access Logs (`/access-logs`)
 
 #### Listar Logs de Acesso
 ```http
@@ -651,7 +651,7 @@ GET /access-logs
 Authorization: Bearer <token>
 ```
 
-## 📊 Modelos de Dados
+## Modelos de Dados
 
 ### Usuário (User)
 ```json
@@ -725,7 +725,7 @@ Authorization: Bearer <token>
 }
 ```
 
-## 🚨 Códigos de Status
+## Códigos de Status
 
 | Código | Descrição |
 |--------|-----------|
@@ -750,7 +750,7 @@ Authorization: Bearer <token>
 | Conversação | 30 mensagens/min |
 | Insights | 10 gerações/5min |
 
-## 🚫 Tratamento de Erros
+## Tratamento de Erros
 
 ### Estrutura de Erro Padrão:
 ```json
@@ -802,7 +802,7 @@ Authorization: Bearer <token>
 }
 ```
 
-## 🔍 Exemplos de Uso Completos
+## Exemplos de Uso Completos
 
 ### Fluxo Completo: NL-to-SQL
 ```javascript
@@ -879,7 +879,7 @@ const insightsResponse = await fetch('/conversation/insights', {
 const insights = await insightsResponse.json();
 ```
 
-## 🛠️ Scripts Disponíveis
+## Scripts Disponíveis
 
 ```bash
 # Desenvolvimento
@@ -906,7 +906,7 @@ npm run setup:clean     # Limpeza do projeto
 npm run setup:health    # Verificação de saúde
 ```
 
-## 📚 Recursos Adicionais
+## Recursos Adicionais
 
 ### Logs e Monitoramento:
 - Logs estruturados de todas as interações com IA
@@ -933,12 +933,12 @@ npm run setup:health    # Verificação de saúde
 
 ---
 
-## 🤝 Suporte
+## Suporte
 
 Para dúvidas ou suporte:
-- 📧 Email: suporte@smartbi.com
-- 📚 Wiki: [Link para wiki]
-- 🐛 Issues: [GitHub Issues]
+- Email: suporte@smartbi.com
+- Wiki: [Link para wiki]
+- Issues: [GitHub Issues]
 
 ---
 
