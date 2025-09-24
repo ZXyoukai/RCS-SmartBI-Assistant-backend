@@ -69,7 +69,7 @@ class NL2SQLService extends AIService {
    * @param {number} sessionId - ID da sessão
    * @returns {Object} Resultado da conversão
    */
-  async convertNLToSQL(naturalLanguageQuery, userId, sessionId) {
+  async convertNLToSQL(naturalLanguageQuery, userId, sessionId, dbSchema, type,) {
     try {
       // Verifica cache primeiro
       const cached = await this.getCachedResponse(naturalLanguageQuery, 'nl2sql');
@@ -84,7 +84,7 @@ class NL2SQLService extends AIService {
       const conversationContext = await this.buildConversationContext(sessionId);
 
       // Cria prompt específico para NL-to-SQL
-      const prompt = this.buildNL2SQLPrompt(naturalLanguageQuery, conversationContext);
+      const prompt = this.buildNL2SQLPrompt(naturalLanguageQuery, dbSchema, type, conversationContext);
 
       // Chama IA
       const aiResponse = await this.generateResponse(prompt, {
@@ -183,25 +183,24 @@ class NL2SQLService extends AIService {
    * @param {string} context - Contexto da conversa
    * @returns {string} Prompt formatado
    */
-  buildNL2SQLPrompt(query, context = '') {
+  buildNL2SQLPrompt(query, context = '', dbSchema, type ) {
     return `
 ${context}
 
-Você é um especialista em converter consultas de linguagem natural para SQL.
+Você é um especialista em converter consultas de linguagem natural para SQL, sabendo que o banco de dados é ${type}
 
-${this.databaseSchema}
+${dbSchema != '' ? dbSchema : this.databaseSchema}
 
 INSTRUÇÕES:
 1. Converta a consulta em linguagem natural para SQL válido
-2. Use apenas as tabelas e colunas do schema fornecido
-3. Retorne a resposta no formato JSON exato:
+2. Retorne a resposta no formato JSON exato:
 {
   "sql": "SELECT ... FROM ...",
   "explanation": "Explicação em português do que a consulta faz",
   "confidence": "high|medium|low"
 }
 
-4. Se não conseguir converter, retorne:
+3. Se não conseguir converter, retorne:
 {
   "sql": null,
   "explanation": "Não foi possível converter esta consulta. Motivo: [explicação]",

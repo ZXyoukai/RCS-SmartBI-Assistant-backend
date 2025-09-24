@@ -44,14 +44,16 @@ class AIController {
 
       // Seleção do banco
       let dbSchema = null;
+      let type = null;
       if (databaseId) {
         const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
         if (!db) return res.status(400).json({ success: false, error: 'Banco selecionado não encontrado.' });
         dbSchema = db.schema;
+        type = db.type;
       }
 
       // Processa conversão, passando schema se disponível
-      const result = await nl2sqlService.convertNLToSQL(query, userId, activeSessionId, dbSchema);
+      const result = await nl2sqlService.convertNLToSQL(query, userId, activeSessionId, dbSchema, type);
 
       // Salva interação no banco
       const interaction = await prisma.ai_interactions.create({
