@@ -4,10 +4,16 @@ const prisma = new PrismaClient();
 module.exports = {
   async createDatabase(req, res) {
     try {
-      const { name, url, schema, description } = req.body;
-      if (!schema || !name) {
-        return res.status(400).json({ error: 'Schema e nome são obrigatórios.' });
+      const { name, url, schema, description, type } = req.body;
+      if (!schema || !name || !type) {
+        return res.status(400).json({ error: 'Schema, nome e tipo são obrigatórios.' });
       }
+      // if(!schema && (type === 'PostgreSQL' || type === 'MySQL' || type === 'MSSQL' || type === 'SQLite') && url)
+      //   {
+      //     // Se o schema não for fornecido, mas o tipo e a URL forem, podemos tentar inferir o schema
+      //     schema = await inferSchemaFromDatabase(url, type);
+      //   }
+      console.log('Schema recebido:', schema);
       // Validação simples do schema: deve ser um JSON válido com pelo menos uma tabela
       let schemaObj;
       try {
@@ -19,7 +25,7 @@ module.exports = {
         return res.status(400).json({ error: 'Schema inválido. Deve ser JSON.' });
       }
       const db = await prisma.associated_databases.create({
-        data: { name, url, schema: JSON.stringify(schemaObj), description }
+        data: { name, url, schema: JSON.stringify(schemaObj), description, type }
       });
       res.status(201).json(db);
     } catch (error) {
