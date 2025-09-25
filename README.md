@@ -1,6 +1,11 @@
-# SmartBI Assistant - Backend API
+# 🤖 SmartBI Assistant - Backend API
 
 API robusta para assistente de Business Intelligence com integração de IA, conversão NL-to-SQL, chat conversacional e geração de insights.
+
+## 📚 Documentação Completa
+
+- **[📖 Documentação da API](./API_DOCUMENTATION.md)** - Guia completo de todos os endpoints, autenticação e exemplos
+- **[🏗️ Detalhes de Implementação](./IMPLEMENTATION_DETAILS.md)** - Arquitetura, tecnologias e decisões de design
 
 ## 🚀 Funcionalidades
 

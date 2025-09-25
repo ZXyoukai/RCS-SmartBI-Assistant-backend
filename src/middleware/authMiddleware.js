@@ -12,4 +12,11 @@ const authMiddleware = (req, res, next) => {
   });
 };
 
-module.exports = authMiddleware;
+const roleMiddleware = (roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Permissão negada' });
+  }
+  next();
+};
+
+module.exports = { authMiddleware, roleMiddleware };

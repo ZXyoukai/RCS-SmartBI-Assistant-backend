@@ -170,3 +170,14 @@ model ai_response_cache {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 }
+
+model associated_databases {
+  id            Int      @id @default(autoincrement())
+  name          String   // Nome identificador do banco
+  type          String   // Tipo do banco (ex: PostgreSQL, MySQL, etc.)
+  url           String?  // URL de conexão (opcional, pois pode ser só schema)
+  schema        String   // Schema obrigatório
+  description   String?  // Descrição ou observações
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+}
