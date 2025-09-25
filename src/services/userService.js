@@ -13,3 +13,4 @@ exports.getAllUsers = async () => {
 exports.createUser = async (data) => {
   return prisma.user.create({ data });
 };
+
