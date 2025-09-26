@@ -17,8 +17,13 @@ const associatedDatabasesRoutes = require('./routes/associatedDatabasesRoutes');
 const exdatabaseExtraRoutes = require('./routes/exdatabaseExtraRoutes');
 const fallbacksRoutes = require('./routes/fallbacksRoutes');
 
+const corsOptions = {
+  origin: '*', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+};
 // Middleware básico
-app.use(cors());
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
