@@ -152,12 +152,18 @@ class AIController {
           }
         }
       }
+      let visualContent = null;
+      if (queryResult.error == null && queryResult != null) {
+        visualContent = await nl2sqlService.generateVisualContent(result.sql, userId, activeSessionId, dbSchema, type);
+      }
 
+      console.log('visualContent', visualContent);
       res.json({
         success: true,
         data: {
           sql: result.sql,
           explanation: result.explanation,
+          visualContent,
           confidence: result.confidence,
           sessionId: activeSessionId,
           interactionId: interaction.id,

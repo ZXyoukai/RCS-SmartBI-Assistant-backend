@@ -69,10 +69,10 @@ class NL2SQLService extends AIService {
    * @param {number} sessionId - ID da sessão
    * @returns {Object} Resultado da conversão
    */
-  async convertNLToSQL(naturalLanguageQuery, userId, sessionId, dbSchema, type,) {
+  async generateVisualContent(sqlQuery, userId, sessionId, dbSchema, type,) {
     try {
       // Verifica cache primeiro
-      const cached = await this.getCachedResponse(naturalLanguageQuery, 'nl2sql');
+      const cached = await this.getCachedResponse(sqlQuery, 'generateVisualContent');
       if (cached) {
         return {
           ...cached,
@@ -84,25 +84,25 @@ class NL2SQLService extends AIService {
       const conversationContext = await this.buildConversationContext(sessionId);
 
       // Cria prompt específico para NL-to-SQL
-      const prompt = this.buildNL2SQLPrompt(naturalLanguageQuery, dbSchema, type, conversationContext);
+      // const prompt = this.buildNL2SQLPrompt(sqlQuery, dbSchema, type, conversationContext);
+      const prompt = this.buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext);
 
       // Chama IA
       const aiResponse = await this.generateResponse(prompt, {
-        interactionType: 'nl2sql',
+        interactionType: 'generateVisualContent',
         userId,
         sessionId
       });
 
       if (!aiResponse.success) {
-        return this.handleNL2SQLError(aiResponse, naturalLanguageQuery, userId, sessionId);
+        return this.handleNL2SQLError(aiResponse, sqlQuery, userId, sessionId);
       }
 
       // Processa resposta
-      const sqlData = this.parseNL2SQLResponse(aiResponse.response);
-      const confidenceScore = this.calculateNL2SQLConfidence(sqlData, naturalLanguageQuery);
-
+      const markdown = aiResponse;
       const result = {
         success: true,
+        markdown,
         sql: sqlData.sql,
         explanation: sqlData.explanation,
         confidence: confidenceScore,
@@ -110,17 +110,12 @@ class NL2SQLService extends AIService {
         needsFallback: this.needsFallback(aiResponse, confidenceScore),
         metadata: aiResponse.metadata
       };
-
-      // Salva no cache se confiança for alta
-      if (confidenceScore > 0.7) {
-        await this.cacheResponse(naturalLanguageQuery, 'nl2sql', result);
-      }
-
+      await this.cacheResponse(sqlQuery, 'generateVisualContent', result);
       return result;
 
     } catch (error) {
       console.error('Erro na conversão NL-to-SQL:', error);
-      return this.handleNL2SQLError({ error: error.message }, naturalLanguageQuery, userId, sessionId);
+      return this.handleNL2SQLError({ error: error.message }, sqlQuery, userId, sessionId);
     }
   }
 
@@ -183,14 +178,60 @@ class NL2SQLService extends AIService {
    * @param {string} context - Contexto da conversa
    * @returns {string} Prompt formatado
    */
-  buildNL2SQLPrompt(query, context = '', dbSchema, type ) {
+  buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext) {
+  return `
+Você é um assistente especialista em análise de dados e visualização.
+
+Baseado nos seguintes dados e contexto, gere um markdown sugerindo o melhor modelo de gráfico para apresentar esses dados. Considere o tipo de apresentação e o contexto da conversa.
+
+---
+
+**Dados da consulta (exemplo):**  
+\`\`\`json
+${JSON.stringify(dataInDb, null, 2)}
+\`\`\`
+
+**Esquema do banco de dados:**  
+\`\`\`json
+${JSON.stringify(dbSchema, null, 2)}
+\`\`\`
+
+**Tipo de apresentação:**  
+${typeOfApresentation}
+
+**Contexto da conversa:**  
+${conversationContext}
+
+---
+
+### Instruções para a sugestão de gráfico:
+
+- Analise os tipos de dados e colunas disponíveis.
+- Considere o tipo de apresentação (ex: relatório, dashboard, apresentação executiva).
+- Leve em conta o contexto da conversa para ajustar o estilo e o foco da visualização.
+- Escolha o modelo de gráfico mais adequado (ex: gráfico de barras, linhas, pizza, scatter, mapa, etc).
+- Explique brevemente o motivo da escolha.
+- Gere um markdown contendo:
+  - Um título para o gráfico.
+  - Uma descrição curta.
+  - A sugestão do tipo de gráfico.
+  - Um exemplo de visualização em markdown (ex: tabela simplificada ou link para biblioteca de gráficos).
+  
+---
+
+### Sugestão de gráfico para esses dados:
+`;
+}
+
+  buildNL2SQLPrompt(query, dbSchema, type, conversationContext) {
     return `
+Tenha em mente que ${conversationContext}
 Você é um assistente que converte linguagem natural para SQL usando SOMENTE as tabelas e colunas fornecidas no schema abaixo.
 
 TIPO DE BANCO DE DADOS:
 ${type}
 
-SCHEMA DO BANCO DE DADOS:
+SCHEMA DO BANCO DE DADOS: 
 ${dbSchema}
 
 REGRAS IMPORTANTES:
