@@ -20,7 +20,9 @@
     "fallback-stats": "node scripts/init-fallbacks.js stats",
     "setup:ai": "npm run init-fallbacks",
     "test": "echo \"Tests not configured yet\" && exit 1",
-    "lint": "echo \"Linting not configured yet\" && exit 1"
+    "lint": "echo \"Linting not configured yet\" && exit 1",
+    "prepare": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "repository": {
     "type": "git",
