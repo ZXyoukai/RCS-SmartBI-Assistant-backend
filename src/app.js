@@ -18,8 +18,10 @@ const exdatabaseExtraRoutes = require('./routes/exdatabaseExtraRoutes');
 const fallbacksRoutes = require('./routes/fallbacksRoutes');
 
 const corsOptions = {
-  origin: '*', 
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+  origin: '*', // ou o domínio frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 };
 // Middleware básico
 
