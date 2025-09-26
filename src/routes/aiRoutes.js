@@ -113,6 +113,8 @@ router.post('/sql2nl',
   aiController.convertSQLToNL
 );
 
+router.get('/iaIterations/:id', aiController.getAIInteractions);
+router.get('/iaIterations/', aiController.getAllAIInteractions);
 /**
  * @route POST /ai/validate-sql
  * @desc Valida uma consulta SQL
@@ -125,6 +127,7 @@ router.post('/validate-sql',
   validateSQL2NLInput,
   aiController.validateSQL
 );
+
 
 /**
  * @route GET /ai/history

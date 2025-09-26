@@ -8,6 +8,36 @@ class AIController {
   /**
    * Converte linguagem natural para SQL
    */
+  async getAIInteractions(req, res) {
+    // const session_id = req.params.session_id;
+    const id = req.params.id;
+    try {
+      
+      const interactions = await prisma.ai_interactions.findMany({ where: { session_id: Number(id) } });
+      res.json({ success: true, data: interactions });
+    } catch (error) {
+      console.error('Erro ao buscar interações:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  async getAllAIInteractions(req, res) {
+    try {
+      
+      const interactions = await prisma.ai_interactions.findMany();
+      res.json({ success: true, data: interactions });
+    } catch (error) {
+      console.error('Erro ao buscar interações:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
   async convertNLToSQL(req, res) {
     try {
       const { query, sessionId, language = 'pt-BR', databaseId } = req.body;
@@ -75,14 +105,22 @@ class AIController {
       });
 
       // Atualiza histórico
+      const querie = await prisma.queries.create({
+        data: {
+          user_id: userId,
+          question_text: query,
+        }
+      });
+
       await prisma.history.create({
         data: {
           user_id: userId,
-          query_id: null, // Pode ser associado a uma query específica se necessário
+          query_id: querie.id, // Pode ser associado a uma query específica se necessário
           success: result.success,
           execution_time: result.executionTime / 1000 // Converte para segundos
         }
       });
+
 
       // Executa o SQL gerado se banco selecionado e query for SELECT
       let queryResult = null;
