@@ -1,5 +1,7 @@
+const { get } = require('../app');
 const NL2SQLService = require('../services/nl2sqlService');
 const { PrismaClient } = require('@prisma/client');
+const { executeReadOnlyQuery, getSchema } = require('../services/externalDbService');
 
 const prisma = new PrismaClient();
 const nl2sqlService = new NL2SQLService();
@@ -78,7 +80,12 @@ class AIController {
       if (databaseId) {
         const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
         if (!db) return res.status(400).json({ success: false, error: 'Banco selecionado não encontrado.' });
-        dbSchema = db.schema;
+        // if(!db.schema)
+        // {
+        dbSchema = await getSchema(db.url, db.type);
+        console.log('Schema obtido:', dbSchema);
+        // }
+        // dbSchema = db.schema;
         type = db.type;
       }
 
@@ -128,7 +135,7 @@ class AIController {
         const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
         if (db && db.url) {
           try {
-            const { executeReadOnlyQuery } = require('../services/externalDbService');
+            // const { executeReadOnlyQuery } = require('../services/externalDbService');
             const rows = await executeReadOnlyQuery(db.url, result.sql);
             // Formatação para tabela
             if (rows && rows.length > 0) {
@@ -264,7 +271,6 @@ class AIController {
   async validateSQL(req, res) {
     try {
       const { sqlQuery } = req.body;
-      const userId = req.user.id;
 
       if (!sqlQuery) {
         return res.status(400).json({

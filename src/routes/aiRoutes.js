@@ -21,7 +21,7 @@ const aiRateLimit = rateLimit({
 // Rate limiting para conversões - mais restritivo ainda
 const conversionRateLimit = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 conversões por minuto
+  max: 5, // máximo 5 conversões por minuto
   message: {
     success: false,
     error: 'Limite de conversões excedido. Aguarde 1 minuto.',

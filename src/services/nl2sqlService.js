@@ -185,31 +185,43 @@ class NL2SQLService extends AIService {
    */
   buildNL2SQLPrompt(query, context = '', dbSchema, type ) {
     return `
-${context}
+Você é um assistente que converte linguagem natural para SQL usando SOMENTE as tabelas e colunas fornecidas no schema abaixo.
 
-Você é um especialista em converter consultas de linguagem natural para SQL, sabendo que o banco de dados é ${type}
+TIPO DE BANCO DE DADOS:
+${type}
 
-${dbSchema != '' ? dbSchema : this.databaseSchema}
+SCHEMA DO BANCO DE DADOS:
+${dbSchema}
 
-INSTRUÇÕES:
-1. Converta a consulta em linguagem natural para SQL válido
-2. Retorne a resposta no formato JSON exato:
+REGRAS IMPORTANTES:
+1. Use apenas tabelas e colunas presentes no schema.
+2. Não invente nomes de tabelas ou colunas (ex: não use "users" se ela não estiver no schema).
+3. Se a consulta mencionar conceitos como "usuários", "produtos", "pedidos", etc., encontre a tabela mais próxima no schema(eu dizendo usuarios, mas no schema ter User ou Users).
+4. Se não conseguir mapear a consulta com clareza, diga isso explicitamente.
+
+Obrigatoriamente siga o seguinte:
+1. Somente retorne tabelas e colunas que existem no schema.
+2. Se não tiver certeza sobre como mapear um termo, peça esclarecimentos.
+
+FORMATO DE RESPOSTA (somente JSON):
 {
   "sql": "SELECT ... FROM ...",
-  "explanation": "Explicação em português do que a consulta faz",
-  "confidence": "high|medium|low"
+  "explanation": "Explicação simples do que a consulta faz, em português",
+  "confidence": "high" | "medium" | "low"
 }
 
-3. Se não conseguir converter, retorne:
+SE NÃO FOR POSSÍVEL CONVERTER:
 {
   "sql": null,
-  "explanation": "Não foi possível converter esta consulta. Motivo: [explicação]",
+  "explanation": "Não foi possível converter esta consulta. Motivo: [explique o porquê]",
   "confidence": "low"
 }
 
-CONSULTA: "${query}"
+CONSULTA EM LINGUAGEM NATURAL:
+"${query}"
 
-RESPOSTA (apenas JSON válido):`;
+RESPOSTA:
+`;
   }
 
   /**
