@@ -68,11 +68,13 @@ class NL2SQLService extends AIService {
    * @param {number} userId - ID do usuário
    * @param {number} sessionId - ID da sessão
    * @returns {Object} Resultado da conversão
-   */
-  async generateVisualContent(sqlQuery, userId, sessionId, dbSchema, type,) {
+  */
+  
+
+  async convertNLToSQL(naturalLanguageQuery, userId, sessionId, dbSchema, type,) {
     try {
       // Verifica cache primeiro
-      const cached = await this.getCachedResponse(sqlQuery, 'generateVisualContent');
+      const cached = await this.getCachedResponse(naturalLanguageQuery, 'nl2sql');
       if (cached) {
         return {
           ...cached,
@@ -84,25 +86,25 @@ class NL2SQLService extends AIService {
       const conversationContext = await this.buildConversationContext(sessionId);
 
       // Cria prompt específico para NL-to-SQL
-      // const prompt = this.buildNL2SQLPrompt(sqlQuery, dbSchema, type, conversationContext);
-      const prompt = this.buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext);
+      const prompt = this.buildNL2SQLPrompt(naturalLanguageQuery, dbSchema, type, conversationContext);
 
       // Chama IA
       const aiResponse = await this.generateResponse(prompt, {
-        interactionType: 'generateVisualContent',
+        interactionType: 'nl2sql',
         userId,
         sessionId
       });
 
       if (!aiResponse.success) {
-        return this.handleNL2SQLError(aiResponse, sqlQuery, userId, sessionId);
+        return this.handleNL2SQLError(aiResponse, naturalLanguageQuery, userId, sessionId);
       }
 
       // Processa resposta
-      const markdown = aiResponse;
+      const sqlData = this.parseNL2SQLResponse(aiResponse.response);
+      const confidenceScore = this.calculateNL2SQLConfidence(sqlData, naturalLanguageQuery);
+
       const result = {
         success: true,
-        markdown,
         sql: sqlData.sql,
         explanation: sqlData.explanation,
         confidence: confidenceScore,
@@ -110,12 +112,17 @@ class NL2SQLService extends AIService {
         needsFallback: this.needsFallback(aiResponse, confidenceScore),
         metadata: aiResponse.metadata
       };
-      await this.cacheResponse(sqlQuery, 'generateVisualContent', result);
+
+      // Salva no cache se confiança for alta
+      if (confidenceScore > 0.7) {
+        await this.cacheResponse(naturalLanguageQuery, 'nl2sql', result);
+      }
+
       return result;
 
     } catch (error) {
       console.error('Erro na conversão NL-to-SQL:', error);
-      return this.handleNL2SQLError({ error: error.message }, sqlQuery, userId, sessionId);
+      return this.handleNL2SQLError({ error: error.message }, naturalLanguageQuery, userId, sessionId);
     }
   }
 
@@ -125,7 +132,7 @@ class NL2SQLService extends AIService {
    * @param {number} userId - ID do usuário
    * @param {number} sessionId - ID da sessão
    * @returns {Object} Resultado da conversão
-   */
+  */
   async convertSQLToNL(sqlQuery, userId, sessionId) {
     try {
       // Verifica cache
@@ -171,6 +178,73 @@ class NL2SQLService extends AIService {
       return this.handleSQL2NLError({ error: error.message }, sqlQuery, userId, sessionId);
     }
   }
+  async generateVisualContent(dataInDb, userId, sessionId, dbSchema, type,) {
+    try {
+      // Verifica cache primeiro
+      const cached = await this.getCachedResponse(dataInDb, 'generateVisualContent');
+      if (cached) {
+        return {
+          ...cached,
+          fromCache: true
+        };
+      }
+
+      // Constrói contexto da conversa
+      // const conversationContext = await this.buildConversationContext(sessionId);
+
+      // Cria prompt específico para NL-to-SQL
+      // const prompt = this.buildNL2SQLPrompt(dataInDb, dbSchema, type, conversationContext);
+      const typeOfApresentation = [
+  'Bar Chart',
+  'Line Chart',
+  'Pie Chart',
+  'Gantt Chart',
+  'Flowchart',
+  'Sequence Diagram',
+  'Class Diagram',
+  'State Diagram',
+  'ER Diagram',
+  'Journey Diagram',
+  'Quadrant Chart'
+];
+      const conversationContext = '';
+      const prompt = this.buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext);
+
+      console.log('\n\n\nprompt', prompt);
+      // Chama IA
+      const aiResponse = await this.generateResponse(prompt, {
+        interactionType: 'generateVisualContent',
+        userId,
+        sessionId
+      });
+
+      if (!aiResponse.success) {
+        return this.handleNL2SQLError(aiResponse, dataInDb, userId, sessionId);
+      }
+
+      // Processa resposta
+      const markdown = aiResponse.response || aiResponse;
+      const result = {
+        success: true,
+        markdown,
+        executionTime: aiResponse.executionTime
+      };
+      await this.cacheResponse(dataInDb, 'generateVisualContent', result);
+      return result;
+
+    } catch (error) {
+      console.error('Erro na conversão NL-to-SQL:', error);
+      return this.handleNL2SQLError({ error: error.message }, dataInDb, userId, sessionId);
+    }
+  }
+
+  /**
+   * Converte SQL para linguagem natural
+   * @param {string} sqlQuery - Consulta SQL
+   * @param {number} userId - ID do usuário
+   * @param {number} sessionId - ID da sessão
+   * @returns {Object} Resultado da conversão
+   */
 
   /**
    * Constrói prompt para NL-to-SQL
@@ -178,91 +252,93 @@ class NL2SQLService extends AIService {
    * @param {string} context - Contexto da conversa
    * @returns {string} Prompt formatado
    */
-  buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext) {
+ buildGVCPrompt(dataInDb, dbSchema, typeOfApresentation, conversationContext) {
   return `
-Você é um assistente especialista em análise de dados e visualização.
+Você é um assistente especialista em **análise de dados e visualização**.  
 
-Baseado nos seguintes dados e contexto, gere um markdown sugerindo o melhor modelo de gráfico para apresentar esses dados. Considere o tipo de apresentação e o contexto da conversa.
+Baseado nos dados e contexto fornecidos, gere um **markdown** com o melhor modelo de gráfico para apresentar os dados ou se possível apresente diretamente com apenas um destes: Mermaid ${typeOfApresentation.join(', ')}.
 
 ---
 
-**Dados da consulta (exemplo):**  
-\`\`\`json
+### Dados disponíveis
+**Consulta:**  
+
 ${JSON.stringify(dataInDb, null, 2)}
-\`\`\`
 
-**Esquema do banco de dados:**  
-\`\`\`json
+**Esquema do banco de dados:** 
 ${JSON.stringify(dbSchema, null, 2)}
-\`\`\`
-
-**Tipo de apresentação:**  
-${typeOfApresentation}
 
 **Contexto da conversa:**  
 ${conversationContext}
 
+**Tipo de apresentação:**  
+${typeOfApresentation}
+
 ---
 
-### Instruções para a sugestão de gráfico:
+### Instruções:
+- Analise os dados, o esquema e o contexto.  
+- Escolha a melhor forma de visualização condizente com o tipo de apresentação, .  
+- Retorne **somente o markdown ou Mermaid** que será renderizado no front-end.  
+- Ajusta os dados para apresentação correta, por exemplo no data do pode vir em formato diferente.
+- Certifica-se que esta completo e correto.
+- Não inclua explicações adicionais.  
 
-- Analise os tipos de dados e colunas disponíveis.
-- Considere o tipo de apresentação (ex: relatório, dashboard, apresentação executiva).
-- Leve em conta o contexto da conversa para ajustar o estilo e o foco da visualização.
-- Escolha o modelo de gráfico mais adequado (ex: gráfico de barras, linhas, pizza, scatter, mapa, etc).
-- Explique brevemente o motivo da escolha.
-- Gere um markdown contendo:
-  - Um título para o gráfico.
-  - Uma descrição curta.
-  - A sugestão do tipo de gráfico.
-  - Um exemplo de visualização em markdown (ex: tabela simplificada ou link para biblioteca de gráficos).
-  
 ---
 
-### Sugestão de gráfico para esses dados:
+### Formato da Resposta:
+- Sempre gere o Tipo de apresentação ou a apresentação mais adequada com os dados fornecidos.
+- Sempre retornar **apenas markdown**.  
+
+#### Exemplo válido:
+\`\`\`markdown
+**Negrito**, *itálico* e \`código inline\`
+\`\`\`
+
+#### Caso não seja possível gerar gráfico:
+\`\`\`markdown
+Nenhum gráfico adequado pode ser gerado com os dados fornecidos.
+\`\`\`
 `;
 }
 
-  buildNL2SQLPrompt(query, dbSchema, type, conversationContext) {
-    return `
-Tenha em mente que ${conversationContext}
-Você é um assistente que converte linguagem natural para SQL usando SOMENTE as tabelas e colunas fornecidas no schema abaixo.
 
+  buildNL2SQLPrompt(query, dbSchema, type, conversationContext) {
+    return `Tenha em mente que ${conversationContext}
+Você é um assistente que converte linguagem natural para SQL usando SOMENTE as tabelas e colunas fornecidas no schema abaixo.
 TIPO DE BANCO DE DADOS:
 ${type}
-
-SCHEMA DO BANCO DE DADOS: 
-${dbSchema}
-
-REGRAS IMPORTANTES:
-1. Use apenas tabelas e colunas presentes no schema.
+SCHEMA DO BANCO DE DADOS:
+${JSON.stringify(dbSchema, null, 2)}
+---
+## REGRAS DE GERAÇÃO E MAPEAMENTO (CRÍTICAS)
+---
+1. Use **apenas** tabelas e colunas que existem no schema.
 2. Não invente nomes de tabelas ou colunas (ex: não use "users" se ela não estiver no schema).
-3. Se a consulta mencionar conceitos como "usuários", "produtos", "pedidos", etc., encontre a tabela mais próxima no schema(eu dizendo usuarios, mas no schema ter User ou Users).
-4. Se não conseguir mapear a consulta com clareza, diga isso explicitamente.
+3. **CORRESPONDÊNCIA DE NOME É OBRIGATÓRIA**: Se a consulta mencionar conceitos (ex: "usuários", "relatórios", "alertas"), você deve encontrar a tabela mais próxima no schema (ex: "User", "Report", "Alert").
+4. **VALIDE O PLURAL/SINGULAR**: A correspondência deve ser **EXATA**. Se a linguagem natural for "usuários", você deve procurar por **User** ou **Users** (ou o que estiver no schema) e usar o nome **idêntico** ao do schema.
 
 Obrigatoriamente siga o seguinte:
-1. Somente retorne tabelas e colunas que existem no schema.
-2. Se não tiver certeza sobre como mapear um termo, peça esclarecimentos.
+1. Somente retorne tabelas e colunas que **existem no schema**.
+2. **USE SEMPRE O NOME EXATO (Case Sensitive)** da tabela e coluna conforme definido no SCHEMA (ex: se for 'User', use 'User', nunca 'users').
+3. Se não tiver certeza sobre como mapear um termo, **PEÇA ESCLARECIMENTOS** explicitamente.
 
+---
 FORMATO DE RESPOSTA (somente JSON):
 {
   "sql": "SELECT ... FROM ...",
   "explanation": "Explicação simples do que a consulta faz, em português",
   "confidence": "high" | "medium" | "low"
 }
-
 SE NÃO FOR POSSÍVEL CONVERTER:
 {
   "sql": null,
   "explanation": "Não foi possível converter esta consulta. Motivo: [explique o porquê]",
   "confidence": "low"
 }
-
 CONSULTA EM LINGUAGEM NATURAL:
 "${query}"
-
-RESPOSTA:
-`;
+RESPOSTA:`;
   }
 
   /**

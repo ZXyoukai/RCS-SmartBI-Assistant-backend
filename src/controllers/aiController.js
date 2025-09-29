@@ -153,9 +153,9 @@ class AIController {
         }
       }
       let visualContent = null;
-      if (queryResult.error == null && queryResult != null) {
-        visualContent = await nl2sqlService.generateVisualContent(result.sql, userId, activeSessionId, dbSchema, type);
-      }
+      visualContent = await nl2sqlService.generateVisualContent(queryResult, userId, activeSessionId, dbSchema, type);
+      // if (queryResult.error == null && queryResult != null) {
+      // }
 
       console.log('visualContent', visualContent);
       res.json({
