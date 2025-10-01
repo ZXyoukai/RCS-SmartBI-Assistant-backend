@@ -23,13 +23,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 };
-// Middleware básico
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rota de teste
 app.get('/health', (req, res) => {
   res.json({
     success: true,

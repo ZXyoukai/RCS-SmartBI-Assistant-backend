@@ -1,9 +1,11 @@
 const NL2SQLService = require('../services/nl2sqlService');
+const MermaidVisualizationService = require('../services/mermaidVisualizationService');
 const { PrismaClient } = require('@prisma/client');
 const { executeReadOnlyQuery, getSchema } = require('../services/externalDbService');
 
 const prisma = new PrismaClient();
 const nl2sqlService = new NL2SQLService();
+const mermaidService = new MermaidVisualizationService();
 
 class AIController {
   /**
@@ -145,8 +147,8 @@ class AIController {
                 rows
               };
               
-              // Gera conteúdo visual com a nova lógica melhorada
-              visualContent = await nl2sqlService.generateVisualContent(
+              // Gera conteúdo visual com o novo serviço Mermaid otimizado
+              visualContent = await mermaidService.generateMermaidVisualization(
                 queryResult, 
                 userId, 
                 activeSessionId, 
@@ -155,42 +157,41 @@ class AIController {
               );
             } else {
               queryResult = { type: 'table', columns: [], rows: [] };
-              visualContent = {
-                success: true,
-                markdown: `# Consulta Executada
-
-## Resultado
-Nenhum registro encontrado para a consulta.
-
-\`\`\`sql
-${result.sql}
-\`\`\`
-
-## Próximos Passos
-- Verifique se os critérios de busca estão corretos
-- Tente ajustar os filtros da consulta
-- Verifique se há dados na(s) tabela(s) consultada(s)`,
-                executionTime: 0
-              };
+        visualContent = {
+          success: true,
+          mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#4CAF50"}}}%%
+flowchart TD
+    A[📋 Consulta Executada] --> B[Nenhum registro encontrado]
+    B --> C[Verifique os critérios]
+    C --> D[Ajuste os filtros]
+    D --> E[Confirme os dados]
+    style A fill:#e8f5e8
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e1f5fe
+    style E fill:#f1f8e9`,
+          visualizationType: 'flowchart',
+          chartTitle: 'Resultado Vazio',
+          executionTime: 0
+        };
             }
           } catch (err) {
             queryResult = { error: 'Erro ao executar SQL: ' + err.message };
             visualContent = {
               success: false,
-              markdown: `# ⚠️ Erro na Execução
-
-## Problema
-${err.message}
-
-## SQL Gerado
-\`\`\`sql
-${result.sql}
-\`\`\`
-
-## Sugestões
-- Verifique a sintaxe SQL
-- Confirme se as tabelas e colunas existem
-- Verifique as permissões de acesso`,
+              mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#f44336"}}}%%
+flowchart TD
+    A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
+    B --> C[Verificar sintaxe SQL]
+    C --> D[Confirmar tabelas]
+    D --> E[Verificar permissões]
+    style A fill:#ffebee
+    style B fill:#ffcdd2
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
+    style E fill:#e8f5e8`,
+              visualizationType: 'error',
+              chartTitle: 'Erro de Execução',
               executionTime: 0
             };
           }
@@ -199,17 +200,19 @@ ${result.sql}
         // Apenas SQL gerado, sem execução
         visualContent = {
           success: true,
-          markdown: `# SQL Gerado
-
-## Consulta
-\`\`\`sql
-${result.sql}
-\`\`\`
-
-## Explicação
-${result.explanation}
-
-> **Nota**: Para executar esta consulta, selecione um banco de dados.`,
+          mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#2196F3"}}}%%
+flowchart LR
+    A[🔍 Consulta Analisada] --> B[SQL Gerado]
+    B --> C[${result.explanation.slice(0, 30)}...]
+    C --> D[Selecione um banco]
+    D --> E[Execute a consulta]
+    style A fill:#e3f2fd
+    style B fill:#f1f8e9
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
+    style E fill:#e8f5e8`,
+          visualizationType: 'flowchart',
+          chartTitle: 'SQL Pronto para Execução',
           executionTime: 0
         };
       }
@@ -232,8 +235,11 @@ ${result.explanation}
             databaseType: type,
             hasVisualization: !!(visualContent && visualContent.success),
             visualizationType: visualContent?.visualizationType,
+            chartTitle: visualContent?.chartTitle,
             dataStats: visualContent?.dataStats,
-            queryExecuted: !!queryResult && !queryResult.error
+            queryExecuted: !!queryResult && !queryResult.error,
+            mermaidGenerated: !!(visualContent && visualContent.mermaid),
+            totalDataPoints: visualContent?.metadata?.totalDataPoints || 0
           }
         }
       });
@@ -327,6 +333,99 @@ ${result.explanation}
 
     } catch (error) {
       console.error('Erro no endpoint SQL-to-NL:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Gera visualização Mermaid otimizada
+   */
+  async generateMermaidVisualization(req, res) {
+    try {
+      const { queryData, sessionId, databaseId } = req.body;
+      const userId = req.user.id;
+
+      // Validações
+      if (!queryData || !queryData.rows || queryData.rows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Dados da consulta são obrigatórios'
+        });
+      }
+
+      // Verifica ou cria sessão se necessário
+      let activeSessionId = sessionId;
+      if (!activeSessionId) {
+        const newSession = await prisma.ai_chat_sessions.create({
+          data: {
+            user_id: userId,
+            session_token: `mermaid_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+            status: 'active',
+            context_data: { type: 'mermaid_visualization' }
+          }
+        });
+        activeSessionId = newSession.id;
+      }
+
+      // Obtém schema do banco se fornecido
+      let dbSchema = null;
+      let dbType = null;
+      if (databaseId) {
+        const db = await prisma.associated_databases.findUnique({ 
+          where: { id: Number(databaseId) } 
+        });
+        if (db) {
+          dbSchema = await getSchema(db.url, db.type);
+          dbType = db.type;
+        }
+      }
+
+      // Gera visualização Mermaid
+      const result = await mermaidService.generateMermaidVisualization(
+        queryData,
+        userId,
+        activeSessionId,
+        dbSchema,
+        dbType
+      );
+
+      // Salva interação no banco
+      const interaction = await prisma.ai_interactions.create({
+        data: {
+          session_id: activeSessionId,
+          user_id: userId,
+          interaction_type: 'mermaid_visualization',
+          input_text: JSON.stringify(queryData),
+          processed_query: result.mermaid,
+          ai_response: result,
+          execution_status: result.success ? 'success' : 'error',
+          execution_time_ms: result.executionTime,
+          confidence_score: result.success ? 0.9 : 0.1,
+          metadata: result.metadata
+        }
+      });
+
+      res.json({
+        success: true,
+        data: {
+          mermaid: result.mermaid,
+          visualizationType: result.visualizationType,
+          chartTitle: result.chartTitle,
+          dataStats: result.dataStats,
+          sessionId: activeSessionId,
+          interactionId: interaction.id,
+          executionTime: result.executionTime,
+          fromCache: result.fromCache || false,
+          metadata: result.metadata
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro no endpoint de visualização Mermaid:', error);
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',

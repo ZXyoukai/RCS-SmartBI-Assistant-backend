@@ -113,6 +113,47 @@ router.post('/sql2nl',
   aiController.convertSQLToNL
 );
 
+/**
+ * @route POST /ai/generate-mermaid
+ * @desc Gera visualização Mermaid otimizada a partir de dados
+ * @access Private
+ * @body {
+ *   queryData: object,       // Dados da consulta com rows e columns (obrigatório)
+ *   sessionId?: number,      // ID da sessão (opcional)
+ *   databaseId?: number      // ID do banco de dados (opcional)
+ * }
+ */
+router.post('/generate-mermaid',
+  conversionRateLimit,
+  (req, res, next) => {
+    const { queryData } = req.body;
+    
+    if (!queryData) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData é obrigatório'
+      });
+    }
+
+    if (!queryData.rows || !Array.isArray(queryData.rows)) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData.rows deve ser um array'
+      });
+    }
+
+    if (!queryData.columns || !Array.isArray(queryData.columns)) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData.columns deve ser um array'
+      });
+    }
+
+    next();
+  },
+  aiController.generateMermaidVisualization
+);
+
 router.get('/iaIterations/:id', aiController.getAIInteractions);
 router.get('/iaIterations/', aiController.getAllAIInteractions);
 /**
