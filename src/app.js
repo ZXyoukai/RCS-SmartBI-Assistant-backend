@@ -44,13 +44,13 @@ app.use('/users', userRoutes);
 app.use('/ai', aiRoutes);
 app.use('/conversation', conversationRoutes);
 app.use('/queries', queryRoutes);
-app.use('/results', resultsRoutes)
+app.use('/results', resultsRoutes);
 app.use('/history', historyRoutes);
 app.use('/exports', exportsRoutes);
 app.use('/suggestions', suggestionsRoutes);
 app.use('/access-logs', accessLogsRoutes);
-app.use('/exdatabase', associatedDatabasesRoutes);
-app.use('/exdatabase', exdatabaseExtraRoutes);
+app.use('/databases', associatedDatabasesRoutes);
+app.use('/databases/extra', exdatabaseExtraRoutes);
 app.use('/fallbacks', fallbacksRoutes);
 
 

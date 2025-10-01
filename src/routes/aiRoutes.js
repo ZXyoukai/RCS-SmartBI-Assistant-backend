@@ -97,12 +97,6 @@ router.post('/nl2sql',
   aiController.convertNLToSQL
 );
 
-// router.post('/genV1', 
-//   conversionRateLimit,
-//   validateNL2SQLInput,
-//   aiController.generateVisualContent
-// );
-
 /**
  * @route POST /ai/sql2nl
  * @desc Converte SQL para linguagem natural

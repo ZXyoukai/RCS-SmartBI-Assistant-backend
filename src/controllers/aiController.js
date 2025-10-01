@@ -1,4 +1,3 @@
-const { get } = require('../app');
 const NL2SQLService = require('../services/nl2sqlService');
 const { PrismaClient } = require('@prisma/client');
 const { executeReadOnlyQuery, getSchema } = require('../services/externalDbService');
@@ -131,11 +130,12 @@ class AIController {
 
       // Executa o SQL gerado se banco selecionado e query for SELECT
       let queryResult = null;
+      let visualContent = null;
+      
       if (databaseId && result.sql && /^\s*SELECT/i.test(result.sql)) {
         const db = await prisma.associated_databases.findUnique({ where: { id: Number(databaseId) } });
         if (db && db.url) {
           try {
-            // const { executeReadOnlyQuery } = require('../services/externalDbService');
             const rows = await executeReadOnlyQuery(db.url, result.sql);
             // Formatação para tabela
             if (rows && rows.length > 0) {
@@ -144,33 +144,97 @@ class AIController {
                 columns: Object.keys(rows[0]),
                 rows
               };
+              
+              // Gera conteúdo visual com a nova lógica melhorada
+              visualContent = await nl2sqlService.generateVisualContent(
+                queryResult, 
+                userId, 
+                activeSessionId, 
+                dbSchema, 
+                type
+              );
             } else {
               queryResult = { type: 'table', columns: [], rows: [] };
+              visualContent = {
+                success: true,
+                markdown: `# Consulta Executada
+
+## Resultado
+Nenhum registro encontrado para a consulta.
+
+\`\`\`sql
+${result.sql}
+\`\`\`
+
+## Próximos Passos
+- Verifique se os critérios de busca estão corretos
+- Tente ajustar os filtros da consulta
+- Verifique se há dados na(s) tabela(s) consultada(s)`,
+                executionTime: 0
+              };
             }
           } catch (err) {
             queryResult = { error: 'Erro ao executar SQL: ' + err.message };
+            visualContent = {
+              success: false,
+              markdown: `# ⚠️ Erro na Execução
+
+## Problema
+${err.message}
+
+## SQL Gerado
+\`\`\`sql
+${result.sql}
+\`\`\`
+
+## Sugestões
+- Verifique a sintaxe SQL
+- Confirme se as tabelas e colunas existem
+- Verifique as permissões de acesso`,
+              executionTime: 0
+            };
           }
         }
-      }
-      let visualContent = null;
-      visualContent = await nl2sqlService.generateVisualContent(queryResult, userId, activeSessionId, dbSchema, type);
-      // if (queryResult.error == null && queryResult != null) {
-      // }
+      } else if (result.sql) {
+        // Apenas SQL gerado, sem execução
+        visualContent = {
+          success: true,
+          markdown: `# SQL Gerado
 
-      console.log('visualContent', visualContent);
+## Consulta
+\`\`\`sql
+${result.sql}
+\`\`\`
+
+## Explicação
+${result.explanation}
+
+> **Nota**: Para executar esta consulta, selecione um banco de dados.`,
+          executionTime: 0
+        };
+      }
+
       res.json({
         success: true,
         data: {
           sql: result.sql,
           explanation: result.explanation,
-          visualContent,
+          visualContent: visualContent || null,
           confidence: result.confidence,
           sessionId: activeSessionId,
           interactionId: interaction.id,
           executionTime: result.executionTime,
           fromCache: result.fromCache || false,
           fallbackUsed: result.fallbackUsed || false,
-          queryResult
+          queryResult,
+          // Metadados adicionais
+          metadata: {
+            databaseType: type,
+            hasVisualization: !!(visualContent && visualContent.success),
+            visualizationType: visualContent?.visualizationType,
+            dataStats: visualContent?.dataStats,
+            queryExecuted: !!queryResult && !queryResult.error
+          }
         }
       });
 
