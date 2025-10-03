@@ -16,6 +16,10 @@ const accessLogsRoutes = require('./routes/accessLogsRoutes');
 const associatedDatabasesRoutes = require('./routes/associatedDatabasesRoutes');
 const exdatabaseExtraRoutes = require('./routes/exdatabaseExtraRoutes');
 const fallbacksRoutes = require('./routes/fallbacksRoutes');
+const aiChatSessionsRoutes = require('./routes/aiChatSessionsRoutes');
+const aiInteractionsRoutes = require('./routes/aiInteractionsRoutes');
+const aiInsightsRoutes = require('./routes/aiInsightsRoutes');
+const aiResponseCacheRoutes = require('./routes/aiResponseCacheRoutes');
 
 const corsOptions = {
   origin: '*', // ou o domínio frontend
@@ -50,6 +54,10 @@ app.use('/access-logs', accessLogsRoutes);
 app.use('/databases', associatedDatabasesRoutes);
 app.use('/databases/extra', exdatabaseExtraRoutes);
 app.use('/fallbacks', fallbacksRoutes);
+app.use('/ai/chat-sessions', aiChatSessionsRoutes);
+app.use('/ai/interactions', aiInteractionsRoutes);
+app.use('/ai/insights', aiInsightsRoutes);
+app.use('/ai/cache', aiResponseCacheRoutes);
 
 
 app.listen(PORT, () => {

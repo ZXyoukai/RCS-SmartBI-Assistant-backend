@@ -51,5 +51,57 @@ module.exports = {
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
+  },
+
+  async updateDatabase(req, res) {
+    try {
+      const { id } = req.params;
+      const { name, url, schema, description, type } = req.body;
+      
+      // Validação do schema se fornecido
+      if (schema) {
+        let schemaObj;
+        try {
+          schemaObj = typeof schema === 'string' ? JSON.parse(schema) : schema;
+          if (!schemaObj || typeof schemaObj !== 'object') {
+            return res.status(400).json({ error: 'Schema deve ser um objeto JSON válido.' });
+          }
+        } catch (e) {
+          return res.status(400).json({ error: 'Schema inválido. Deve ser JSON.' });
+        }
+      }
+
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (url) updateData.url = url;
+      if (schema) updateData.schema = JSON.stringify(typeof schema === 'string' ? JSON.parse(schema) : schema);
+      if (description) updateData.description = description;
+      if (type) updateData.type = type;
+
+      const db = await prisma.associated_databases.update({
+        where: { id: Number(id) },
+        data: updateData
+      });
+      
+      res.json(db);
+    } catch (error) {
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Banco não encontrado.' });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async deleteDatabase(req, res) {
+    try {
+      const { id } = req.params;
+      await prisma.associated_databases.delete({ where: { id: Number(id) } });
+      res.json({ success: true, message: 'Banco removido com sucesso.' });
+    } catch (error) {
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Banco não encontrado.' });
+      }
+      res.status(500).json({ error: error.message });
+    }
   }
 };
