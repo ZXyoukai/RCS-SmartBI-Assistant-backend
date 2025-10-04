@@ -189,23 +189,94 @@ class AIController {
               queryResult = { type: 'table', columns: [], rows: [] };
             }
           }} catch (err) {
-            queryResult = { error: 'Erro ao executar SQL: ' + err.message };
-            visualContent = {
-              success: false,
-              mermaid: `flowchart TD
-                A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
-                B --> C[Verificar sintaxe SQL]
-                C --> D[Confirmar tabelas]
-                D --> E[Verificar permissões]
-                style A fill:#ffebee
-                style B fill:#ffcdd2
-                style C fill:#fff3e0
-                style D fill:#f3e5f5
-                style E fill:#e8f5e8`,
-              visualizationType: 'error',
-              chartTitle: 'Erro de Execução',
-              executionTime: 0
-            };
+            console.log('Erro na execução do SQL, tentando corrigir com IA...', err.message);
+            
+            // Tenta corrigir o SQL automaticamente usando IA
+            try {
+              const fixedSqlResult = await this.fixSQLWithAI(result.sql, err.message, dbSchema, type, query);
+              
+              if (fixedSqlResult.success && fixedSqlResult.correctedSql) {
+                console.log('SQL corrigido pela IA:', fixedSqlResult.correctedSql);
+                
+                // Tenta executar o SQL corrigido
+                try {
+                  const fixedRows = await executeReadOnlyQuery(db.url, fixedSqlResult.correctedSql);
+                  console.log('Execução do SQL corrigido bem-sucedida');
+                  
+                  if (fixedRows && fixedRows.length > 0) {
+                    queryResult = {
+                      type: 'table',
+                      columns: Object.keys(fixedRows[0]),
+                      rows: fixedRows,
+                      aiCorrected: true,
+                      originalError: err.message,
+                      correctedSql: fixedSqlResult.correctedSql,
+                      correctionExplanation: fixedSqlResult.explanation
+                    };
+                    
+                    // Gera visualização para os dados corrigidos
+                    visualContent = await mermaidService.generateMermaidVisualization(
+                      queryResult,
+                      userId,
+                      activeSessionId,
+                      dbSchema,
+                      type
+                    );
+                  } else {
+                    queryResult = { 
+                      type: 'table', 
+                      columns: [], 
+                      rows: [],
+                      aiCorrected: true,
+                      originalError: err.message,
+                      correctedSql: fixedSqlResult.correctedSql
+                    };
+                  }
+                  
+                  result.sql = fixedSqlResult.correctedSql;
+                  result.explanation += ` (SQL corrigido automaticamente: ${fixedSqlResult.explanation})`;
+                  
+                } catch (fixedErr) {
+                  console.log('Falha na execução do SQL corrigido:', fixedErr.message);
+                  queryResult = { 
+                    error: `Erro original: ${err.message}. Tentativa de correção falhou: ${fixedErr.message}`,
+                    aiCorrected: false,
+                    correctedSql: fixedSqlResult.correctedSql
+                  };
+                }
+              } else {
+                queryResult = { 
+                  error: `Erro ao executar SQL: ${err.message}. IA não conseguiu corrigir automaticamente.`,
+                  aiCorrected: false
+                };
+              }
+            } catch (aiErr) {
+              console.log('Erro na correção automática com IA:', aiErr.message);
+              queryResult = { 
+                error: `Erro ao executar SQL: ${err.message}. Falha na correção automática.`,
+                aiCorrected: false
+              };
+            }
+            
+            // Visualização de erro se não foi possível corrigir
+            if (!queryResult.type) {
+              visualContent = {
+                success: false,
+                mermaid: `flowchart TD
+                  A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
+                  B --> C[Tentativa de Correção IA]
+                  C --> D[${queryResult.aiCorrected ? 'Correção Bem-sucedida' : 'Correção Falhou'}]
+                  D --> E[${queryResult.aiCorrected ? 'Dados Retornados' : 'Verificar Manualmente'}]
+                  style A fill:#ffebee
+                  style B fill:#ffcdd2
+                  style C fill:#fff3e0
+                  style D fill:${queryResult.aiCorrected ? '#e8f5e8' : '#f3e5f5'}
+                  style E fill:${queryResult.aiCorrected ? '#e8f5e8' : '#ffebee'}`,
+                visualizationType: 'error',
+                chartTitle: queryResult.aiCorrected ? 'SQL Corrigido Automaticamente' : 'Erro de Execução',
+                executionTime: 0
+              };
+            }
           }
         }
       } else if (result.sql) {
@@ -227,13 +298,14 @@ class AIController {
         };
       }
       const reply = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-        //
-        model: 'openai/gpt-4o',
+        //anthropic/claude-sonnet-4.5
+        model: 'anthropic/claude-sonnet-4.5',
         messages: [
           {
         role: 'user',
-        content: `com base no resultado da consulta gera ou markdown mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
+        content: `com base no resultado da consulta gera mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
           simplemente responda com o markdown, nada mais.
+          Não use table.
           Certifique-se de que o diagrama é válido e renderizável. Se os dados estiverem vazios, gere um diagrama simples indicando "Nenhum dado encontrado".
           Tenha bastante atenção, para não gerar com erros de sintaxe(com como colocar as , quando devido e etc...), que não possam ser renderizados.
           Depois de gerar o markdown, volte a analisar se nao tem erros de sintaxe, se tiver, corrija-os.`,
@@ -265,6 +337,9 @@ class AIController {
           fallbackUsed: result.fallbackUsed || false,
           markdown: reply ? reply.choices[0].message.content : null,
           queryResult,
+          aiCorrected: queryResult?.aiCorrected || false,
+          originalError: queryResult?.originalError || null,
+          correctionExplanation: queryResult?.correctionExplanation || null,
           metadata: {
             databaseType: type,
             hasVisualization: !!(visualContent && visualContent.success),
@@ -273,7 +348,13 @@ class AIController {
             dataStats: visualContent?.dataStats,
             queryExecuted: !!queryResult && !queryResult.error,
             mermaidGenerated: !!(visualContent && visualContent.mermaid),
-            totalDataPoints: visualContent?.metadata?.totalDataPoints || 0
+            totalDataPoints: visualContent?.metadata?.totalDataPoints || 0,
+            aiCorrected: queryResult?.aiCorrected || false,
+            automaticFix: queryResult?.aiCorrected ? {
+              originalError: queryResult.originalError,
+              correctedSql: queryResult.correctedSql,
+              explanation: queryResult.correctionExplanation
+            } : null
           }
         }
       });
@@ -755,6 +836,146 @@ class AIController {
         success: false,
         error: 'Erro interno do servidor'
       });
+    }
+  }
+
+  /**
+   * Corrige SQL automaticamente usando IA quando há erro de execução
+   */
+  async fixSQLWithAI(originalSql, errorMessage, dbSchema, dbType, originalQuery) {
+    try {
+      console.log('Iniciando correção automática de SQL com IA...');
+      
+      const prompt = `
+Você é um especialista em SQL. Uma consulta falhou com o seguinte erro:
+
+**SQL Original:**
+\`\`\`sql
+${originalSql}
+\`\`\`
+
+**Erro:**
+${errorMessage}
+
+**Query original do usuário:**
+${originalQuery}
+
+**Tipo do banco:** ${dbType || 'PostgreSQL'}
+
+**Schema do banco:**
+${dbSchema ? JSON.stringify(dbSchema, null, 2) : 'Schema não disponível'}
+
+**Sua tarefa:**
+1. Analise o erro e identifique o problema
+2. Corrija o SQL mantendo a intenção original
+3. Retorne apenas o SQL corrigido, sem explicações adicionais
+4. O SQL deve ser compatível com ${dbType || 'PostgreSQL'}
+5. Certifique-se de que é uma query SELECT (read-only)
+
+**Regras importantes:**
+- Apenas queries SELECT são permitidas
+- Use nomes de tabelas e colunas corretos baseados no schema
+- Mantenha a lógica original da consulta
+- Se não for possível corrigir, retorne "CANNOT_FIX"
+
+**Resposta esperada:**
+Apenas o SQL corrigido ou "CANNOT_FIX"
+`;
+
+      const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: 'openai/gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1, // Baixa temperatura para respostas mais determinísticas
+        max_tokens: 1000
+      }, {
+        headers: {
+          Authorization: 'Bearer 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',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const aiResponse = response.data.choices[0].message.content.trim();
+      
+      if (aiResponse === 'CANNOT_FIX' || !aiResponse || aiResponse.length === 0) {
+        return {
+          success: false,
+          error: 'IA não conseguiu corrigir o SQL automaticamente'
+        };
+      }
+
+      // Remove markdown se presente
+      const correctedSql = aiResponse
+        .replace(/```sql\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      // Validação básica de segurança
+      if (!/^\s*SELECT/i.test(correctedSql)) {
+        return {
+          success: false,
+          error: 'SQL corrigido não é uma query SELECT válida'
+        };
+      }
+
+      // Validação adicional para operações perigosas
+      const dangerousKeywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE'];
+      const hasDangerousKeyword = dangerousKeywords.some(keyword => 
+        correctedSql.toUpperCase().includes(keyword)
+      );
+
+      if (hasDangerousKeyword) {
+        return {
+          success: false,
+          error: 'SQL corrigido contém operações não permitidas'
+        };
+      }
+
+      // Gera explicação da correção
+      const explanationPrompt = `
+Explique brevemente (em português, máximo 100 caracteres) qual foi a correção feita no SQL:
+
+SQL Original: ${originalSql}
+SQL Corrigido: ${correctedSql}
+Erro: ${errorMessage}
+`;
+
+      const explanationResponse = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: 'openai/gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: explanationPrompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 100
+      }, {
+        headers: {
+          Authorization: 'Bearer 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',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const explanation = explanationResponse.data.choices[0].message.content.trim();
+
+      return {
+        success: true,
+        correctedSql,
+        explanation: explanation || 'SQL corrigido automaticamente',
+        originalError: errorMessage
+      };
+
+    } catch (error) {
+      console.error('Erro na correção automática de SQL:', error);
+      return {
+        success: false,
+        error: 'Falha na comunicação com IA para correção de SQL'
+      };
     }
   }
 
