@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""
+Teste da API Gemini
+"""
+import asyncio
+import os
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
+
+async def test_gemini_integration():
+    print("🧪 Testando integração com Gemini...")
+    
+    try:
+        from gemini_analyzer import GeminiAnalyzer
+        
+        # Inicializar o analisador
+        analyzer = GeminiAnalyzer()
+        
+        # Verificar configuração
+        model_info = analyzer.get_model_info()
+        print(f"📊 Configuração do modelo: {model_info}")
+        
+        # Testar conexão
+        if analyzer.check_connection():
+            print("✅ Conexão com Gemini OK!")
+            
+            # Teste de análise simples
+            test_data = """id,produto,vendas,regiao
+1,Laptop,1500,Norte
+2,Mouse,50,Sul
+3,Teclado,120,Centro"""
+            
+            data_info = {
+                'rows': 3,
+                'columns': 4,
+                'column_names': ['id', 'produto', 'vendas', 'regiao']
+            }
+            
+            print("🤖 Executando análise de teste...")
+            result = await analyzer.analyze_data(test_data, data_info, 'csv')
+            
+            print("✅ Análise executada com sucesso!")
+            print(f"⏱️ Tempo de processamento: {result['processing_time']}s")
+            print(f"🔧 Modelo usado: {result['model_used']}")
+            print(f"📝 Primeiros 300 caracteres da resposta:")
+            print("-" * 50)
+            print(result['gemini_response'][:300] + "...")
+            
+        else:
+            print("❌ Falha na conexão com Gemini")
+            
+    except Exception as e:
+        print(f"❌ Erro no teste: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(test_gemini_integration())

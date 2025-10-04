@@ -1,11 +1,8 @@
 pandas
-scikit-learn
-matplotlib
-seaborn
 fastapi
 uvicorn[standard]
 python-multipart
-sqlalchemy
-pymysql
-psycopg2-binary
+google-generativeai
+python-dotenv
 sqlparse
+pydantic
