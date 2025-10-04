@@ -544,6 +544,8 @@ Obrigatoriamente siga o seguinte:
 1. Somente retorne tabelas e colunas que **existem no schema**.
 2. **USE SEMPRE O NOME EXATO (Case Sensitive)** da tabela e coluna conforme definido no SCHEMA (ex: se for 'User', use 'User', nunca 'users').
 3. Se não tiver certeza sobre como mapear um termo, **PEÇA ESCLARECIMENTOS** explicitamente.
+4. Irás Gerar oque é compativel com ${type}.
+5. Depois de gerar o SQL, analisa-o para garantir que está correto e faz sentido e se não, corrija-o.
 
 ---
 FORMATO DE RESPOSTA (somente JSON):

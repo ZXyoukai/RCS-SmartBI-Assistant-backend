@@ -2,6 +2,7 @@ const NL2SQLService = require('../services/nl2sqlService');
 const MermaidVisualizationService = require('../services/mermaidVisualizationService');
 const { PrismaClient } = require('@prisma/client');
 const { executeReadOnlyQuery, getSchema } = require('../services/externalDbService');
+const { default: axios } = require('axios');
 
 const prisma = new PrismaClient();
 const nl2sqlService = new NL2SQLService();
@@ -91,9 +92,34 @@ class AIController {
       }
 
       // Processa conversão, passando schema se disponível
+      // const payload = {
+      //     prompt: query,
+      //     dialect: type,
+      //     schema: dbSchema
+      // };
+
+      // const config = {
+      //     headers: {
+      //         'x-functions-key': 'P5bUn0rOb5KrQF3pD5mvf1pJ87-pX_5GwHPMmyu_eh6JAzFuRctc8g==',
+      //     },
+      // };
+
+      // const result = await axios.post(
+      //     'https://rosco-edutec-openai-functions.azurewebsites.net/api/AssistenteNlToSql', 
+      //     payload,
+      //     config   
+      // ).then(response => {
+      //     return response.data;
+      // }).catch(error => {
+      //     // console.error('Erro ao chamar serviço NL-to-SQL:', error);
+      //     throw new Error('Erro ao processar consulta');
+      // });
+
+      // console.log('Resultado do serviço NL-to-SQL:', result);
       const result = await nl2sqlService.convertNLToSQL(query, userId, activeSessionId, dbSchema, type);
 
       // Salva interação no banco
+      // result.sql = result.reply;
       const interaction = await prisma.ai_interactions.create({
         data: {
           session_id: activeSessionId,
@@ -101,9 +127,9 @@ class AIController {
           interaction_type: 'nl2sql',
           input_text: query,
           input_language: language,
-          processed_query: result.sql,
+          processed_query: result.reply,
           ai_response: result,
-          execution_status: result.success ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
+          execution_status: result.reply != '' ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
           execution_time_ms: result.executionTime,
           confidence_score: result.confidence,
           fallback_used: result.fallbackUsed || false,
@@ -112,7 +138,7 @@ class AIController {
         }
       });
 
-      // Atualiza histórico
+
       const querie = await prisma.queries.create({
         data: {
           user_id: userId,
@@ -140,56 +166,42 @@ class AIController {
           try {
             const rows = await executeReadOnlyQuery(db.url, result.sql);
             // Formatação para tabela
+            console.log('Rows retornadas da consulta:', rows);
             if (rows && rows.length > 0) {
               queryResult = {
                 type: 'table',
                 columns: Object.keys(rows[0]),
                 rows
               };
-              
+            
+
               // Gera conteúdo visual com o novo serviço Mermaid otimizado
-              visualContent = await mermaidService.generateMermaidVisualization(
-                queryResult, 
-                userId, 
-                activeSessionId, 
-                dbSchema, 
+              if (queryResult) {
+                console.log('Gerando visualização Mermaid para os dados da consulta...');
+                visualContent = await mermaidService.generateMermaidVisualization(
+                  queryResult,
+                  userId,
+                  activeSessionId,
+                  dbSchema,
                 type
               );
-            } else {
+            }else if (!rows) {
               queryResult = { type: 'table', columns: [], rows: [] };
-        visualContent = {
-          success: true,
-          mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#4CAF50"}}}%%
-flowchart TD
-    A[📋 Consulta Executada] --> B[Nenhum registro encontrado]
-    B --> C[Verifique os critérios]
-    C --> D[Ajuste os filtros]
-    D --> E[Confirme os dados]
-    style A fill:#e8f5e8
-    style B fill:#fff3e0
-    style C fill:#f3e5f5
-    style D fill:#e1f5fe
-    style E fill:#f1f8e9`,
-          visualizationType: 'flowchart',
-          chartTitle: 'Resultado Vazio',
-          executionTime: 0
-        };
             }
-          } catch (err) {
+          }} catch (err) {
             queryResult = { error: 'Erro ao executar SQL: ' + err.message };
             visualContent = {
               success: false,
-              mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#f44336"}}}%%
-flowchart TD
-    A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
-    B --> C[Verificar sintaxe SQL]
-    C --> D[Confirmar tabelas]
-    D --> E[Verificar permissões]
-    style A fill:#ffebee
-    style B fill:#ffcdd2
-    style C fill:#fff3e0
-    style D fill:#f3e5f5
-    style E fill:#e8f5e8`,
+              mermaid: `flowchart TD
+                A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
+                B --> C[Verificar sintaxe SQL]
+                C --> D[Confirmar tabelas]
+                D --> E[Verificar permissões]
+                style A fill:#ffebee
+                style B fill:#ffcdd2
+                style C fill:#fff3e0
+                style D fill:#f3e5f5
+                style E fill:#e8f5e8`,
               visualizationType: 'error',
               chartTitle: 'Erro de Execução',
               executionTime: 0
@@ -197,25 +209,47 @@ flowchart TD
           }
         }
       } else if (result.sql) {
-        // Apenas SQL gerado, sem execução
         visualContent = {
-          success: true,
-          mermaid: `%%{init: {"theme":"base", "themeVariables": {"primaryColor":"#2196F3"}}}%%
-flowchart LR
-    A[🔍 Consulta Analisada] --> B[SQL Gerado]
-    B --> C[${result.explanation.slice(0, 30)}...]
-    C --> D[Selecione um banco]
-    D --> E[Execute a consulta]
-    style A fill:#e3f2fd
-    style B fill:#f1f8e9
-    style C fill:#fff3e0
-    style D fill:#f3e5f5
-    style E fill:#e8f5e8`,
+          success: false,
+          mermaid: `flowchart LR
+            A[🔍 Consulta Analisada] --> B[SQL Gerado]
+            B --> C[${result.explanation.slice(0, 30)}...]
+            C --> D[Selecione um banco]
+            D --> E[Execute a consulta]
+            style A fill:#e3f2fd
+            style B fill:#f1f8e9
+            style C fill:#fff3e0
+            style D fill:#f3e5f5
+            style E fill:#e8f5e8`,
           visualizationType: 'flowchart',
           chartTitle: 'SQL Pronto para Execução',
           executionTime: 0
         };
       }
+      const reply = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        //
+        model: 'openai/gpt-4o',
+        messages: [
+          {
+        role: 'user',
+        content: `com base no resultado da consulta gera ou markdown mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
+          simplemente responda com o markdown, nada mais.
+          Certifique-se de que o diagrama é válido e renderizável. Se os dados estiverem vazios, gere um diagrama simples indicando "Nenhum dado encontrado".
+          Tenha bastante atenção, para não gerar com erros de sintaxe(com como colocar as , quando devido e etc...), que não possam ser renderizados.
+          Depois de gerar o markdown, volte a analisar se nao tem erros de sintaxe, se tiver, corrija-os.`,
+          },
+        ],
+      }, {
+        headers: {
+          Authorization: 'Bearer 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',
+          'Content-Type': 'application/json',
+        },
+      }).then(response => response.data).catch(error => {
+        console.error('Erro ao chamar OpenRouter');
+        return null;
+      });
+      console.log('Resposta do OpenRouter:', reply);
+
 
       res.json({
         success: true,
@@ -229,8 +263,8 @@ flowchart LR
           executionTime: result.executionTime,
           fromCache: result.fromCache || false,
           fallbackUsed: result.fallbackUsed || false,
+          markdown: reply ? reply.choices[0].message.content : null,
           queryResult,
-          // Metadados adicionais
           metadata: {
             databaseType: type,
             hasVisualization: !!(visualContent && visualContent.success),
