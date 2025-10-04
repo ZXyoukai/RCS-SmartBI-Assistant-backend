@@ -305,6 +305,17 @@ class AIController {
         role: 'user',
         content: `com base no resultado da consulta gera mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
           simplemente responda com o markdown, nada mais.
+          alguns tipos :
+          sequenceDiagram
+          bar
+          pie
+          line
+          flowchart
+          mindmap
+          classDiagram
+          quadrant
+          erDiagram
+          timeline
           Não use table.
           Certifique-se de que o diagrama é válido e renderizável. Se os dados estiverem vazios, gere um diagrama simples indicando "Nenhum dado encontrado".
           Tenha bastante atenção, para não gerar com erros de sintaxe(com como colocar as , quando devido e etc...), que não possam ser renderizados.
@@ -1020,6 +1031,298 @@ Erro: ${errorMessage}
 
     } catch (error) {
       console.error('Erro ao limpar cache:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Marca/desmarca uma interação como favorita
+   */
+  async toggleFavoriteInteraction(req, res) {
+    try {
+      const { interactionId } = req.params;
+      const userId = req.user.id;
+
+      if (!interactionId || isNaN(interactionId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'ID da interação é obrigatório e deve ser um número válido'
+        });
+      }
+
+      // Busca a interação para verificar se existe e se pertence ao usuário
+      const interaction = await prisma.ai_interactions.findFirst({
+        where: {
+          id: Number(interactionId),
+          user_id: userId
+        }
+      });
+
+      if (!interaction) {
+        return res.status(404).json({
+          success: false,
+          error: 'Interação não encontrada ou você não tem permissão para acessá-la'
+        });
+      }
+
+      // Alterna o status de favorito
+      const updatedInteraction = await prisma.ai_interactions.update({
+        where: { id: Number(interactionId) },
+        data: { favorited: !interaction.favorited }
+      });
+
+      res.json({
+        success: true,
+        message: updatedInteraction.favorited 
+          ? 'Interação adicionada aos favoritos' 
+          : 'Interação removida dos favoritos',
+        data: {
+          interactionId: updatedInteraction.id,
+          favorited: updatedInteraction.favorited,
+          interactionType: updatedInteraction.interaction_type,
+          inputText: updatedInteraction.input_text,
+          createdAt: updatedInteraction.created_at
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro ao alterar favorito da interação:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Lista todas as interações favoritas do usuário
+   */
+  async getFavoriteInteractions(req, res) {
+    try {
+      const userId = req.user.id;
+      const { 
+        page = 1, 
+        limit = 20, 
+        interactionType,
+        sortBy = 'created_at',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const skip = (page - 1) * limit;
+      const where = { 
+        user_id: userId, 
+        favorited: true 
+      };
+
+      // Filtro opcional por tipo
+      if (interactionType) {
+        where.interaction_type = interactionType;
+      }
+
+      // Validação do campo de ordenação
+      const validSortFields = ['created_at', 'execution_time_ms', 'confidence_score'];
+      const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at';
+      const orderBy = { [sortField]: sortOrder === 'asc' ? 'asc' : 'desc' };
+
+      // Busca interações favoritas
+      const [favorites, total] = await Promise.all([
+        prisma.ai_interactions.findMany({
+          where,
+          include: {
+            session: {
+              select: {
+                session_token: true,
+                status: true
+              }
+            }
+          },
+          orderBy,
+          skip,
+          take: parseInt(limit)
+        }),
+        prisma.ai_interactions.count({ where })
+      ]);
+
+      // Estatísticas dos favoritos
+      const stats = await prisma.ai_interactions.groupBy({
+        by: ['interaction_type'],
+        where: { user_id: userId, favorited: true },
+        _count: true
+      });
+
+      res.json({
+        success: true,
+        data: {
+          favorites: favorites.map(interaction => ({
+            id: interaction.id,
+            type: interaction.interaction_type,
+            inputText: interaction.input_text,
+            processedQuery: interaction.processed_query,
+            status: interaction.execution_status,
+            confidence: interaction.confidence_score,
+            executionTime: interaction.execution_time_ms,
+            createdAt: interaction.created_at,
+            session: interaction.session
+          })),
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / limit)
+          },
+          stats: stats.reduce((acc, stat) => {
+            acc[stat.interaction_type] = stat._count;
+            return acc;
+          }, {}),
+          totalFavorites: total
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro ao buscar interações favoritas:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Remove múltiplas interações dos favoritos
+   */
+  async removeFavorites(req, res) {
+    try {
+      const userId = req.user.id;
+      const { interactionIds } = req.body;
+
+      if (!Array.isArray(interactionIds) || interactionIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Lista de IDs das interações é obrigatória'
+        });
+      }
+
+      // Valida se todas as interações pertencem ao usuário
+      const validInteractions = await prisma.ai_interactions.findMany({
+        where: {
+          id: { in: interactionIds.map(id => Number(id)) },
+          user_id: userId,
+          favorited: true
+        },
+        select: { id: true }
+      });
+
+      if (validInteractions.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Nenhuma interação favorita válida encontrada'
+        });
+      }
+
+      const validIds = validInteractions.map(interaction => interaction.id);
+
+      // Remove dos favoritos
+      const result = await prisma.ai_interactions.updateMany({
+        where: {
+          id: { in: validIds },
+          user_id: userId
+        },
+        data: { favorited: false }
+      });
+
+      res.json({
+        success: true,
+        message: `${result.count} interações removidas dos favoritos`,
+        data: {
+          removedCount: result.count,
+          requestedIds: interactionIds,
+          processedIds: validIds
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro ao remover favoritos:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Obtém estatísticas das interações favoritas
+   */
+  async getFavoriteStats(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const [
+        totalFavorites,
+        typeStats,
+        recentFavorites,
+        avgConfidence
+      ] = await Promise.all([
+        // Total de favoritos
+        prisma.ai_interactions.count({
+          where: { user_id: userId, favorited: true }
+        }),
+        
+        // Estatísticas por tipo
+        prisma.ai_interactions.groupBy({
+          by: ['interaction_type'],
+          where: { user_id: userId, favorited: true },
+          _count: true,
+          _avg: { confidence_score: true }
+        }),
+        
+        // Favoritos recentes (últimos 7 dias)
+        prisma.ai_interactions.count({
+          where: {
+            user_id: userId,
+            favorited: true,
+            created_at: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            }
+          }
+        }),
+
+        // Confiança média dos favoritos
+        prisma.ai_interactions.aggregate({
+          where: { user_id: userId, favorited: true },
+          _avg: { confidence_score: true }
+        })
+      ]);
+
+      const typeBreakdown = typeStats.map(stat => ({
+        type: stat.interaction_type,
+        count: stat._count,
+        avgConfidence: Number((stat._avg.confidence_score || 0).toFixed(2))
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          totalFavorites,
+          recentFavorites,
+          avgConfidence: Number((avgConfidence._avg.confidence_score || 0).toFixed(2)),
+          typeBreakdown,
+          summary: {
+            mostUsedType: typeBreakdown.length > 0 
+              ? typeBreakdown.reduce((prev, current) => 
+                  (prev.count > current.count) ? prev : current
+                ).type 
+              : null,
+            qualityScore: avgConfidence._avg.confidence_score > 0.8 ? 'high' 
+              : avgConfidence._avg.confidence_score > 0.6 ? 'medium' : 'low'
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas de favoritos:', error);
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'

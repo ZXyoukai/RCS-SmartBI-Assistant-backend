@@ -120,7 +120,7 @@ model ai_interactions {
   version           String    @default("1.0") // Versionamento das interações
   metadata          Json?     // Metadados adicionais
   created_at        DateTime  @default(now())
-
+  favorited         Boolean   @default(false) // Marca como favorito
   session           ai_chat_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade)
   user              users            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   insights          ai_insights[]

@@ -248,6 +248,90 @@ router.delete('/cache', (req, res, next) => {
   next();
 }, aiController.clearCache);
 
+// =====================================================
+// ROTAS DE FAVORITOS - Gestão de interações favoritas
+// =====================================================
+
+/**
+ * @route   PUT /api/ai/favorites/:interactionId
+ * @desc    Marca/desmarca uma interação como favorita
+ * @access  Private
+ * @params  interactionId - ID da interação de IA
+ */
+router.put('/favorites/:interactionId', (req, res, next) => {
+  // Validação básica do ID
+  const interactionId = parseInt(req.params.interactionId);
+  if (isNaN(interactionId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'ID da interação deve ser um número válido'
+    });
+  }
+  next();
+}, aiController.toggleFavoriteInteraction);
+
+/**
+ * @route   GET /api/ai/favorites
+ * @desc    Lista todas as interações favoritas do usuário
+ * @access  Private
+ * @query   page, limit, interactionType, sortBy, sortOrder
+ */
+router.get('/favorites', (req, res, next) => {
+  // Validação dos parâmetros de paginação
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  
+  if (page < 1 || limit < 1 || limit > 100) {
+    return res.status(400).json({
+      success: false,
+      error: 'Parâmetros de paginação inválidos (page >= 1, limit 1-100)'
+    });
+  }
+  
+  req.query.page = page;
+  req.query.limit = limit;
+  next();
+}, aiController.getFavoriteInteractions);
+
+/**
+ * @route   DELETE /api/ai/favorites
+ * @desc    Remove múltiplas interações dos favoritos
+ * @access  Private
+ * @body    { interactionIds: [1, 2, 3] }
+ */
+router.delete('/favorites', (req, res, next) => {
+  const { interactionIds } = req.body;
+  
+  if (!Array.isArray(interactionIds) || interactionIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Lista de IDs das interações é obrigatória'
+    });
+  }
+  
+  // Valida se todos os IDs são números
+  const invalidIds = interactionIds.filter(id => isNaN(parseInt(id)));
+  if (invalidIds.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Todos os IDs devem ser números válidos'
+    });
+  }
+  
+  next();
+}, aiController.removeFavorites);
+
+/**
+ * @route   GET /api/ai/favorites/stats
+ * @desc    Obtém estatísticas das interações favoritas
+ * @access  Private
+ */
+router.get('/favorites/stats', aiController.getFavoriteStats);
+
+// =====================================================
+// MIDDLEWARE DE TRATAMENTO DE ERROS
+// =====================================================
+
 // Middleware de tratamento de erros específico para rotas de IA
 router.use((error, req, res, next) => {
   console.error('Erro nas rotas de IA:', error);

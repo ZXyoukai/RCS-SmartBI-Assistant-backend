@@ -240,13 +240,98 @@ class MermaidVisualizationService extends AIService {
    * @param {string} dbType - Tipo do banco
    * @returns {string} Prompt formatado
    */
+
+
   buildMermaidPrompt(queryData, dataAnalysis, dbSchema, dbType) {
+    
+    const chartTypes = {
+      sequenceDiagram: `sequenceDiagram
+  Alice->>John: Olá John, você poderia me ajudar com algo?
+  John-->>Alice: Claro Alice, em que posso ajudar?
+  Alice->>John: Preciso entender como funciona o sistema de autenticação.
+  John-->>Alice: O sistema utiliza OAuth2 para autenticação segura.
+`,
+      bar: `xychart-beta
+  title "Training progress"
+  x-axis [mon, tues, wed, thur, fri, sat, sun]
+  y-axis "Time trained (minutes)" 0 --> 300
+  bar [60, 0, 120, 180, 230, 300, 0]
+  line [60, 0, 120, 180, 230, 300, 0]`,
+      pie: `pie title "Distribuição de Classes"
+  pie [60, 40, 30, 50, 80]
+`,
+      line: `xychart-beta
+  title "Evolução do Treinamento"
+  x-axis [mon, tues, wed, thur, fri, sat, sun]
+  x-axis [mon, tues, wed, thur, fri, sat, sun]
+  y-axis "Tempo de Treinamento (minutos)" 0 --> 300
+  line [60, 0, 120, 180, 230, 300, 0]
+`,
+      flowchart: `flowchart TD
+  A[Usuários] --> B[Atividades]
+  A --> C[Relatórios]
+  B --> D[Interações]
+  C --> E[Insights]
+`,
+      mindmap: `mindmap
+  root((Base de Dados))
+    Usuários
+      User
+      Institution
+      Verification
+    Relatórios
+      Report
+      ReportResolution
+      UssdReport
+    Sistema
+      Notifications
+      Alert
+      Reward
+`,
+      classDiagram: `classDiagram
+  class User {
+    +String id
+    +String name
+    +String email
+  }
+  class Report {
+    +String id
+    +String userId
+    +Date createdAt
+  }
+`,
+      quadrant: `quadrantChart
+  title "Análise de Desempenho"
+  x-axis "Complexidade"
+  y-axis "Impacto"
+  point [1, 2]
+  point [2, 3]
+`,
+      erDiagram: `erDiagram
+  User {
+    String id
+    String name
+    String email
+  }
+  Report {
+    String id
+    String userId
+    Date createdAt
+  }
+`,
+      timeline: `timeline
+  title "Linha do Tempo de Eventos"
+  2023-01-01 : "Evento 1"
+  2023-01-02 : "Evento 2"
+`
+    };
     const { recommendedType, suggestedTitle, stats } = dataAnalysis;
     const sampleData = queryData.rows;
 
     return `Você é um especialista em visualização de dados que gera exclusivamente diagramas Mermaid.
 
 **DADOS PARA VISUALIZAÇÃO:**
+- Tipos de Apresentação Disponíveis e seus exemplos: ${Object.keys(chartTypes).join(', ')}
 - Tipo recomendado: ${recommendedType}
 - Título sugerido: ${suggestedTitle}
 - Total de registros: ${stats.totalRows}
