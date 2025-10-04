@@ -10,7 +10,7 @@ Versão: 2.0.0
 Data: 2025
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -22,6 +22,8 @@ from dotenv import load_dotenv
 # Importações dos módulos locais
 from gemini_analyzer import GeminiAnalyzer
 from data_processor import DataProcessor
+from database_connector import DatabaseConnector
+from models import DatabaseConnectionRequest, AnalysisResponse
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -59,6 +61,7 @@ TEMP_DIR.mkdir(exist_ok=True)
 try:
     gemini_analyzer = GeminiAnalyzer()
     data_processor = DataProcessor()
+    database_connector = DatabaseConnector()
     logger.info("✅ Serviços inicializados com sucesso")
 except Exception as e:
     logger.error(f"❌ Erro ao inicializar serviços: {e}")
@@ -78,11 +81,14 @@ async def root():
         "endpoints": {
             "/": "GET - Informações da API",
             "/upload": "POST - Upload de arquivo para análise",
+            "/analyze-database": "POST - Análise via conexão com base de dados",
             "/health": "GET - Status de saúde da aplicação",
             "/docs": "GET - Documentação interativa (Swagger)",
             "/redoc": "GET - Documentação alternativa (ReDoc)"
         },
-        "supported_formats": ["CSV", "SQL"],
+        "supported_formats": ["CSV", "SQL", "Database URL"],
+        "supported_databases": ["MySQL", "PostgreSQL", "SQLite", "SQL Server", "Oracle"],
+        "connection_types": ["File Upload", "Database URL"],
         "ai_provider": "Google Gemini",
         "documentation": "/docs"
     }
@@ -221,6 +227,116 @@ async def upload_and_analyze(file: UploadFile = File(...)):
                 logger.info(f"🗑️ Arquivo temporário removido: {temp_file_path}")
         except Exception as e:
             logger.warning(f"Aviso: Erro ao remover arquivo temporário: {e}")
+
+
+@app.post("/analyze-database")
+async def analyze_database(request: DatabaseConnectionRequest = Body(...)):
+    """
+    Endpoint para análise de dados via conexão direta com base de dados
+    
+    Args:
+        request: Dados da requisição contendo apenas a URL da base de dados
+    
+    Returns:
+        JSON com análise completa dos dados usando Gemini
+        
+    Example:
+        POST /analyze-database
+        {
+            "database_url": "postgresql://user:password@host:port/database"
+        }
+    """
+    
+    # Log do início da requisição
+    logger.info(f"🗄️ Análise de base de dados iniciada: {request.database_url}")
+    
+    try:
+        db_connector = DatabaseConnector()
+        
+        # 1. Conecta à base de dados
+        try:
+            connection_info = db_connector.connect_to_database(request.database_url)
+            logger.info(f"🔗 Conectado à {connection_info['database_type']}")
+            
+        except Exception as e:
+            logger.error(f"Erro na conexão: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro de conexão com a base de dados: {str(e)}")
+        
+        # 2. Extrai dados da base de dados (usando valores padrão)
+        try:
+            # Extrai dados de amostra das tabelas com limite padrão de 1000 registros
+            logger.info(f"📊 Extraindo dados de amostra...")
+            sample_data = db_connector.extract_sample_data(limit=1000)
+            
+            logger.info(f"📋 Dados extraídos: {sample_data['tables_processed']} tabelas, {sample_data['total_records']} registros")
+            
+        except Exception as e:
+            logger.error(f"Erro na extração de dados: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro ao extrair dados: {str(e)}")
+        
+        # 3. Prepara dados para análise
+        try:
+            data_content = db_connector.prepare_data_for_analysis(sample_data)
+            logger.info("📝 Dados preparados para análise com Gemini")
+            
+        except Exception as e:
+            logger.error(f"Erro ao preparar dados: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro ao preparar dados: {str(e)}")
+        
+        # 4. Análise com Gemini
+        try:
+            gemini_analysis = await gemini_analyzer.analyze_data(
+                data_content=data_content,
+                data_info=sample_data,
+                file_type="database"
+            )
+            logger.info("🤖 Análise Gemini concluída")
+            
+        except Exception as e:
+            logger.error(f"Erro na análise Gemini: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro na análise com IA: {str(e)}")
+        
+        # 5. Preparar resposta
+        response = {
+            "success": True,
+            "message": "Análise de base de dados concluída com sucesso",
+            "source_type": "database",
+            "source_info": {
+                "database_type": connection_info["database_type"],
+                "host": connection_info["host"],
+                "database": connection_info.get("database"),
+                "connected_at": connection_info["connected_at"],
+                "sample_limit": 1000
+            },
+            "data_summary": {
+                "tables_processed": sample_data["tables_processed"],
+                "total_records": sample_data["total_records"],
+                "extraction_method": "table_sampling",
+                "extracted_at": sample_data["extracted_at"]
+            },
+            "gemini_response": gemini_analysis['gemini_response'],
+            "processing_time": gemini_analysis.get('processing_time', 0),
+            "model_used": gemini_analysis.get('model_used', 'gemini-2.5-flash-lite'),
+            "analyzed_at": gemini_analysis.get('analyzed_at')
+        }
+        
+        logger.info(f"✅ Análise de base de dados concluída")
+        return JSONResponse(content=response)
+        
+    except HTTPException:
+        # Re-levanta HTTPExceptions (erros de validação)
+        raise
+        
+    except Exception as e:
+        logger.error(f"❌ Erro inesperado na análise de base de dados: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+        
+    finally:
+        # 6. Fecha conexão com a base de dados
+        try:
+            db_connector.close_connection()
+        except Exception as e:
+            logger.warning(f"Aviso ao fechar conexão: {e}")
 
 
 @app.exception_handler(404)
