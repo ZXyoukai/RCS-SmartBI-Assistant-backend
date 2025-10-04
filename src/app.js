@@ -16,6 +16,10 @@ const accessLogsRoutes = require('./routes/accessLogsRoutes');
 const associatedDatabasesRoutes = require('./routes/associatedDatabasesRoutes');
 const exdatabaseExtraRoutes = require('./routes/exdatabaseExtraRoutes');
 const fallbacksRoutes = require('./routes/fallbacksRoutes');
+const aiChatSessionsRoutes = require('./routes/aiChatSessionsRoutes');
+const aiInteractionsRoutes = require('./routes/aiInteractionsRoutes');
+const aiInsightsRoutes = require('./routes/aiInsightsRoutes');
+const aiResponseCacheRoutes = require('./routes/aiResponseCacheRoutes');
 
 const corsOptions = {
   origin: '*', // ou o domínio frontend
@@ -23,13 +27,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 };
-// Middleware básico
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rota de teste
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -44,14 +46,18 @@ app.use('/users', userRoutes);
 app.use('/ai', aiRoutes);
 app.use('/conversation', conversationRoutes);
 app.use('/queries', queryRoutes);
-app.use('/results', resultsRoutes)
+app.use('/results', resultsRoutes);
 app.use('/history', historyRoutes);
 app.use('/exports', exportsRoutes);
 app.use('/suggestions', suggestionsRoutes);
 app.use('/access-logs', accessLogsRoutes);
-app.use('/exdatabase', associatedDatabasesRoutes);
-app.use('/exdatabase', exdatabaseExtraRoutes);
+app.use('/databases', associatedDatabasesRoutes);
+app.use('/databases/extra', exdatabaseExtraRoutes);
 app.use('/fallbacks', fallbacksRoutes);
+app.use('/ai/chat-sessions', aiChatSessionsRoutes);
+app.use('/ai/interactions', aiInteractionsRoutes);
+app.use('/ai/insights', aiInsightsRoutes);
+app.use('/ai/cache', aiResponseCacheRoutes);
 
 
 app.listen(PORT, () => {

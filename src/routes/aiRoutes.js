@@ -21,7 +21,7 @@ const aiRateLimit = rateLimit({
 // Rate limiting para conversões - mais restritivo ainda
 const conversionRateLimit = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 10, // máximo 10 conversões por minuto
+  max: 5, // máximo 5 conversões por minuto
   message: {
     success: false,
     error: 'Limite de conversões excedido. Aguarde 1 minuto.',
@@ -111,6 +111,47 @@ router.post('/sql2nl',
   conversionRateLimit,
   validateSQL2NLInput,
   aiController.convertSQLToNL
+);
+
+/**
+ * @route POST /ai/generate-mermaid
+ * @desc Gera visualização Mermaid otimizada a partir de dados
+ * @access Private
+ * @body {
+ *   queryData: object,       // Dados da consulta com rows e columns (obrigatório)
+ *   sessionId?: number,      // ID da sessão (opcional)
+ *   databaseId?: number      // ID do banco de dados (opcional)
+ * }
+ */
+router.post('/generate-mermaid',
+  conversionRateLimit,
+  (req, res, next) => {
+    const { queryData } = req.body;
+    
+    if (!queryData) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData é obrigatório'
+      });
+    }
+
+    if (!queryData.rows || !Array.isArray(queryData.rows)) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData.rows deve ser um array'
+      });
+    }
+
+    if (!queryData.columns || !Array.isArray(queryData.columns)) {
+      return res.status(400).json({
+        success: false,
+        error: 'queryData.columns deve ser um array'
+      });
+    }
+
+    next();
+  },
+  aiController.generateMermaidVisualization
 );
 
 router.get('/iaIterations/:id', aiController.getAIInteractions);
@@ -206,6 +247,90 @@ router.delete('/cache', (req, res, next) => {
   
   next();
 }, aiController.clearCache);
+
+// =====================================================
+// ROTAS DE FAVORITOS - Gestão de interações favoritas
+// =====================================================
+
+/**
+ * @route   PUT /api/ai/favorites/:interactionId
+ * @desc    Marca/desmarca uma interação como favorita
+ * @access  Private
+ * @params  interactionId - ID da interação de IA
+ */
+router.put('/favorites/:interactionId', (req, res, next) => {
+  // Validação básica do ID
+  const interactionId = parseInt(req.params.interactionId);
+  if (isNaN(interactionId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'ID da interação deve ser um número válido'
+    });
+  }
+  next();
+}, aiController.toggleFavoriteInteraction);
+
+/**
+ * @route   GET /api/ai/favorites
+ * @desc    Lista todas as interações favoritas do usuário
+ * @access  Private
+ * @query   page, limit, interactionType, sortBy, sortOrder
+ */
+router.get('/favorites', (req, res, next) => {
+  // Validação dos parâmetros de paginação
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  
+  if (page < 1 || limit < 1 || limit > 100) {
+    return res.status(400).json({
+      success: false,
+      error: 'Parâmetros de paginação inválidos (page >= 1, limit 1-100)'
+    });
+  }
+  
+  req.query.page = page;
+  req.query.limit = limit;
+  next();
+}, aiController.getFavoriteInteractions);
+
+/**
+ * @route   DELETE /api/ai/favorites
+ * @desc    Remove múltiplas interações dos favoritos
+ * @access  Private
+ * @body    { interactionIds: [1, 2, 3] }
+ */
+router.delete('/favorites', (req, res, next) => {
+  const { interactionIds } = req.body;
+  
+  if (!Array.isArray(interactionIds) || interactionIds.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Lista de IDs das interações é obrigatória'
+    });
+  }
+  
+  // Valida se todos os IDs são números
+  const invalidIds = interactionIds.filter(id => isNaN(parseInt(id)));
+  if (invalidIds.length > 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Todos os IDs devem ser números válidos'
+    });
+  }
+  
+  next();
+}, aiController.removeFavorites);
+
+/**
+ * @route   GET /api/ai/favorites/stats
+ * @desc    Obtém estatísticas das interações favoritas
+ * @access  Private
+ */
+router.get('/favorites/stats', aiController.getFavoriteStats);
+
+// =====================================================
+// MIDDLEWARE DE TRATAMENTO DE ERROS
+// =====================================================
 
 // Middleware de tratamento de erros específico para rotas de IA
 router.use((error, req, res, next) => {

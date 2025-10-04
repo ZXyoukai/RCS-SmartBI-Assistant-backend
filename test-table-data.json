@@ -1,0 +1,23 @@
+{
+  "queryData": {
+    "type": "table",
+    "columns": ["table_name"],
+    "rows": [
+      {"table_name": "PredictedRiskZone"},
+      {"table_name": "Notifications"},
+      {"table_name": "_prisma_migrations"},
+      {"table_name": "VerificationCode"},
+      {"table_name": "Institution"},
+      {"table_name": "User"},
+      {"table_name": "Report"},
+      {"table_name": "ReportResolution"},
+      {"table_name": "Reward"},
+      {"table_name": "videos"},
+      {"table_name": "Alert"},
+      {"table_name": "Verification"},
+      {"table_name": "UssdReportResolution"},
+      {"table_name": "UssdSession"},
+      {"table_name": "UssdReport"}
+    ]
+  }
+}
