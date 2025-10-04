@@ -175,6 +175,157 @@ DADOS PARA ANÁLISE:
     
 
 
+    async def analyze_specific_insights(self, database_schema: Dict, sample_data: Dict, insight_request: str) -> Dict[str, Any]:
+        """
+        Analisa dados da base de dados para gerar insights específicos solicitados
+        
+        Args:
+            database_schema: Esquema da base de dados
+            sample_data: Dados de amostra extraídos
+            insight_request: Solicitação específica de insight
+            
+        Returns:
+            Dict com a análise de insights específicos
+        """
+        try:
+            start_time = time.time()
+            
+            # 1. Preparar contexto da base de dados
+            database_context = self._prepare_database_context(database_schema, sample_data)
+            
+            # 2. Construir prompt especializado para insights específicos
+            prompt = self._build_specific_insights_prompt(database_context, insight_request)
+            
+            logger.info(f"🎯 Iniciando análise de insights específicos...")
+            logger.info(f"📋 Solicitação: {insight_request[:100]}...")
+            
+            # 3. Gerar resposta com Gemini
+            response = self.model.generate_content(prompt)
+            
+            if not response or not response.text:
+                raise Exception("Resposta vazia do Gemini")
+            
+            response_text = response.text.strip()
+            logger.info(f"✅ Insights específicos gerados ({len(response_text)} chars)")
+            
+            # 4. Preparar resultado final
+            processing_time = time.time() - start_time
+            
+            result = {
+                "strategic_insights": response_text,
+                "insight_request": insight_request,
+                "processing_time": round(processing_time, 2),
+                "model_used": self.model_name,
+                "analyzed_at": datetime.now().isoformat(),
+                "database_context_size": len(database_context),
+                "tables_analyzed": len(database_schema.get('tables', {}))
+            }
+            
+            logger.info(f"🎯 Análise de insights específicos concluída em {processing_time:.2f}s")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Erro na análise de insights específicos: {e}")
+            raise Exception(f"Erro ao processar insights específicos: {str(e)}")
+    
+    def _prepare_database_context(self, database_schema: Dict, sample_data: Dict) -> str:
+        """
+        Prepara contexto estruturado da base de dados para análise de insights
+        
+        Args:
+            database_schema: Esquema da base de dados
+            sample_data: Dados de amostra
+            
+        Returns:
+            String com contexto formatado
+        """
+        context = []
+        
+        # Informações gerais
+        context.append("=== CONTEXTO DA BASE DE DADOS ===")
+        context.append(f"Total de Tabelas: {database_schema.get('total_tables', 0)}")
+        context.append(f"Dados Extraídos: {sample_data.get('total_records', 0)} registros")
+        context.append("")
+        
+        # Esquema das tabelas
+        context.append("=== ESTRUTURA DAS TABELAS ===")
+        for table_name, table_info in database_schema.get('tables', {}).items():
+            context.append(f"\n📊 TABELA: {table_name}")
+            context.append(f"   - Registros: {table_info.get('row_count', 0)}")
+            context.append(f"   - Colunas: {table_info.get('column_count', 0)}")
+            
+            # Principais colunas
+            columns = table_info.get('columns', [])[:10]  # Primeiras 10 colunas
+            if columns:
+                context.append("   - Estrutura:")
+                for col in columns:
+                    context.append(f"     * {col['name']}: {col['type']} {'(PK)' if col.get('primary_key') else ''}")
+        
+        # Dados de amostra das principais tabelas
+        context.append("\n=== DADOS DE AMOSTRA ===")
+        for table_name, data in sample_data.get('data', {}).items():
+            if data and len(data) > 0:
+                context.append(f"\n📋 AMOSTRA: {table_name}")
+                # Mostra apenas os primeiros 5 registros
+                for i, record in enumerate(data[:5]):
+                    context.append(f"   Registro {i+1}: {record}")
+                
+                if len(data) > 5:
+                    context.append(f"   ... e mais {len(data) - 5} registros disponíveis")
+        
+        return "\n".join(context)
+    
+    def _build_specific_insights_prompt(self, database_context: str, insight_request: str) -> str:
+        """
+        Constrói prompt especializado para insights específicos
+        
+        Args:
+            database_context: Contexto da base de dados
+            insight_request: Solicitação específica de insight
+            
+        Returns:
+            Prompt formatado para Gemini
+        """
+        return f"""
+Você é um consultor estratégico sênior de uma das Big 4 (McKinsey, BCG, Bain, Deloitte) especializado em análise de dados e business intelligence.
+
+Sua missão é analisar os dados da base de dados fornecida e gerar insights estratégicos específicos baseados na solicitação do cliente C-Level.
+
+CONTEXTO DA BASE DE DADOS:
+{database_context}
+
+SOLICITAÇÃO ESPECÍFICA DO CLIENTE:
+"{insight_request}"
+
+INSTRUÇÕES PARA ANÁLISE ESTRATÉGICA:
+
+1. **ANÁLISE CONTEXTUAL**:
+   - Analise os dados disponíveis na base de dados
+   - Identifique padrões, tendências e anomalias relevantes à solicitação
+   - Considere as relações entre diferentes tabelas e métricas
+
+2. **INSIGHTS ESTRATÉGICOS**:
+   - Gere insights específicos que respondam diretamente à solicitação
+   - Foque em implicações de negócio e oportunidades estratégicas
+   - Identifique riscos, oportunidades e recomendações acionáveis
+
+3. **ESTRUTURA DA RESPOSTA**:
+   - **EXECUTIVE SUMMARY**: Resumo executivo dos principais achados
+   - **ANÁLISE DETALHADA**: Análise aprofundada dos dados relevantes
+   - **INSIGHTS ESTRATÉGICOS**: Principais insights e descobertas
+   - **RECOMENDAÇÕES**: Ações específicas recomendadas
+   - **PRÓXIMOS PASSOS**: Sugestões para implementação
+
+4. **ESTILO DE COMUNICAÇÃO**:
+   - Linguagem executiva, clara e objetiva
+   - Foque em valor de negócio e impacto estratégico
+   - Use métricas e dados concretos sempre que possível
+   - Apresente conclusões acionáveis para tomada de decisão
+
+IMPORTANTE: Sua resposta deve ser específica à solicitação feita e baseada nos dados reais da base de dados. Evite generalizações e foque em insights práticos e estratégicos.
+
+Gere sua análise estratégica em português brasileiro:
+"""
 
     def get_model_info(self) -> Dict[str, Any]:
         """

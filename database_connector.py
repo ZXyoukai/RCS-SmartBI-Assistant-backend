@@ -126,24 +126,66 @@ class DatabaseConnector:
             # Configurações específicas por tipo de base
             connect_args = {}
             if self.db_type == 'mysql':
-                connect_args = {'connect_timeout': 10}
+                connect_args = {
+                    'connect_timeout': 30,
+                    'charset': 'utf8mb4',
+                    'use_unicode': True,
+                    'ssl_disabled': False,  # Permite SSL
+                    'autocommit': True
+                }
+                # Se a URL contém SSL, configura adequadamente
+                if 'ssl-mode=REQUIRED' in db_url.lower() or 'sslmode=require' in db_url.lower():
+                    connect_args['ssl_disabled'] = False
+                    connect_args['ssl_verify_cert'] = False
+                    connect_args['ssl_verify_identity'] = False
             elif self.db_type == 'postgresql':
-                connect_args = {'connect_timeout': 10}
+                connect_args = {
+                    'connect_timeout': 30,
+                    'sslmode': 'prefer'
+                }
             elif self.db_type == 'sqlite':
                 connect_args = {'check_same_thread': False}
             
+            # Processa URL para MySQL se necessário
+            processed_url = db_url
+            if self.db_type == 'mysql':
+                # Converte parâmetros SSL para formato correto do PyMySQL
+                if 'ssl-mode=REQUIRED' in processed_url:
+                    processed_url = processed_url.replace('ssl-mode=REQUIRED', 'ssl={"ssl_disabled": false}')
+                
+                # Adiciona charset se não existir
+                if 'charset=' not in processed_url.lower():
+                    separator = '&' if '?' in processed_url else '?'
+                    processed_url += f'{separator}charset=utf8mb4'
+            
             # Cria a engine de conexão
             self.engine = create_engine(
-                db_url,
+                processed_url,
                 pool_pre_ping=True,
                 pool_recycle=300,
+                pool_timeout=20,
+                pool_size=5,
+                max_overflow=10,
                 connect_args=connect_args,
-                echo=False  # Set to True for SQL debugging
+                echo=False,  # Set to True for SQL debugging
+                execution_options={
+                    "isolation_level": "READ_UNCOMMITTED" if self.db_type == 'mysql' else "READ_COMMITTED"
+                }
             )
             
-            # Testa a conexão
+            # Testa a conexão com query específica por tipo de base
+            test_query = {
+                'mysql': "SELECT 1 as test",
+                'postgresql': "SELECT 1 as test", 
+                'sqlite': "SELECT 1 as test",
+                'mssql': "SELECT 1 as test",
+                'oracle': "SELECT 1 FROM DUAL"
+            }.get(self.db_type, "SELECT 1 as test")
+            
             with self.engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+                result = conn.execute(text(test_query))
+                test_result = result.fetchone()
+                logger.info(f"✅ Teste de conexão realizado: {test_result}")
             
             logger.info(f"✅ Conexão estabelecida com {self.supported_databases[self.db_type]}")
             

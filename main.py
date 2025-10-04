@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 from gemini_analyzer import GeminiAnalyzer
 from data_processor import DataProcessor
 from database_connector import DatabaseConnector
-from models import DatabaseConnectionRequest, AnalysisResponse
+from models import DatabaseConnectionRequest, AnalysisResponse, SpecificInsightRequest, SpecificInsightResponse
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -82,6 +82,7 @@ async def root():
             "/": "GET - Informações da API",
             "/upload": "POST - Upload de arquivo para análise",
             "/analyze-database": "POST - Análise via conexão com base de dados",
+            "/specific-insights": "POST - Insights estratégicos específicos baseados em solicitação",
             "/health": "GET - Status de saúde da aplicação",
             "/docs": "GET - Documentação interativa (Swagger)",
             "/redoc": "GET - Documentação alternativa (ReDoc)"
@@ -329,6 +330,112 @@ async def analyze_database(request: DatabaseConnectionRequest = Body(...)):
         
     except Exception as e:
         logger.error(f"❌ Erro inesperado na análise de base de dados: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+        
+    finally:
+        # 6. Fecha conexão com a base de dados
+        try:
+            db_connector.close_connection()
+        except Exception as e:
+            logger.warning(f"Aviso ao fechar conexão: {e}")
+
+
+@app.post("/specific-insights")
+async def get_specific_insights(request: SpecificInsightRequest = Body(...)):
+    """
+    Endpoint para gerar insights estratégicos específicos baseados em solicitação
+    
+    Args:
+        request: Dados da requisição contendo URL da base de dados e solicitação de insight
+    
+    Returns:
+        JSON com insights estratégicos específicos usando Gemini
+        
+    Examples:
+        - "De acordo com os pedidos realizados neste mês, me dê insights sobre performance de vendas"
+        - "Analise o comportamento dos clientes com base nos dados de compras dos últimos 6 meses"
+        - "Quais produtos têm melhor margem de lucro e oportunidades de crescimento?"
+    """
+    
+    # Log do início da requisição
+    logger.info(f"🎯 Solicitação de insights específicos iniciada")
+    logger.info(f"💭 Solicitação: {request.insight_request[:100]}...")
+    
+    try:
+        db_connector = DatabaseConnector()
+        
+        # 1. Conecta à base de dados
+        try:
+            connection_info = db_connector.connect_to_database(request.database_url)
+            logger.info(f"🔗 Conectado à {connection_info['database_type']}")
+            
+        except Exception as e:
+            logger.error(f"Erro na conexão: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro de conexão com a base de dados: {str(e)}")
+        
+        # 2. Extrai esquema da base de dados
+        try:
+            logger.info(f"📋 Extraindo esquema da base de dados...")
+            database_schema = db_connector.get_database_schema()
+            logger.info(f"✅ Esquema extraído: {database_schema['total_tables']} tabelas")
+            
+        except Exception as e:
+            logger.error(f"Erro ao extrair esquema: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro ao extrair esquema: {str(e)}")
+        
+        # 3. Extrai dados de amostra relevantes
+        try:
+            logger.info(f"📊 Extraindo dados de amostra para análise...")
+            sample_data = db_connector.extract_sample_data(limit=1000)
+            logger.info(f"✅ Dados extraídos: {sample_data['tables_processed']} tabelas, {sample_data['total_records']} registros")
+            
+        except Exception as e:
+            logger.error(f"Erro na extração de dados: {e}")
+            raise HTTPException(status_code=400, detail=f"Erro ao extrair dados: {str(e)}")
+        
+        # 4. Análise de insights específicos com Gemini
+        try:
+            logger.info(f"🤖 Gerando insights estratégicos específicos...")
+            insights_analysis = await gemini_analyzer.analyze_specific_insights(
+                database_schema=database_schema,
+                sample_data=sample_data,
+                insight_request=request.insight_request
+            )
+            logger.info("✅ Insights estratégicos gerados com sucesso")
+            
+        except Exception as e:
+            logger.error(f"Erro na análise de insights: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro na geração de insights: {str(e)}")
+        
+        # 5. Preparar resposta
+        response = {
+            "success": True,
+            "message": "Insights estratégicos específicos gerados com sucesso",
+            "insight_request": request.insight_request,
+            "database_info": {
+                "database_type": connection_info["database_type"],
+                "host": connection_info["host"],
+                "database": connection_info.get("database"),
+                "total_tables": database_schema["total_tables"],
+                "tables_analyzed": insights_analysis["tables_analyzed"],
+                "records_analyzed": sample_data["total_records"],
+                "connected_at": connection_info["connected_at"]
+            },
+            "strategic_insights": insights_analysis["strategic_insights"],
+            "processing_time": insights_analysis["processing_time"],
+            "model_used": insights_analysis["model_used"],
+            "analyzed_at": insights_analysis["analyzed_at"]
+        }
+        
+        logger.info(f"🎯 Insights específicos concluídos em {insights_analysis['processing_time']:.2f}s")
+        return JSONResponse(content=response)
+        
+    except HTTPException:
+        # Re-levanta HTTPExceptions (erros de validação)
+        raise
+        
+    except Exception as e:
+        logger.error(f"❌ Erro inesperado na geração de insights: {e}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
         
     finally:

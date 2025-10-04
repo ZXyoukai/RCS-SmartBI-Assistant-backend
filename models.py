@@ -82,3 +82,52 @@ class AnalysisResponse(BaseModel):
     processing_time: float
     model_used: Optional[str] = None
     analyzed_at: Optional[str] = None
+
+
+class SpecificInsightRequest(BaseModel):
+    """Modelo para requisição de insights específicos"""
+    database_url: str
+    insight_request: str  # Descrição específica do insight desejado
+    
+    @validator('database_url')
+    def validate_database_url(cls, v):
+        if not v or not v.strip():
+            raise ValueError('URL da base de dados é obrigatória')
+        
+        v = v.strip()
+        
+        if '://' not in v:
+            raise ValueError('URL deve conter o protocolo da base de dados (ex: postgresql://, mysql://)')
+        
+        if not v.startswith('sqlite://'):
+            if '@' not in v:
+                raise ValueError('URL deve conter credenciais de autenticação')
+        
+        return v
+    
+    @validator('insight_request')
+    def validate_insight_request(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Descrição do insight é obrigatória')
+        
+        v = v.strip()
+        
+        if len(v) < 10:
+            raise ValueError('Descrição do insight deve ter pelo menos 10 caracteres')
+        
+        if len(v) > 500:
+            raise ValueError('Descrição do insight deve ter no máximo 500 caracteres')
+        
+        return v
+
+
+class SpecificInsightResponse(BaseModel):
+    """Resposta para insights específicos"""
+    success: bool
+    message: str
+    insight_request: str
+    database_info: Dict[str, Any]
+    strategic_insights: str
+    processing_time: float
+    model_used: Optional[str] = None
+    analyzed_at: Optional[str] = None
