@@ -178,6 +178,7 @@ model associated_databases {
   url           String?  // URL de conexão (opcional, pois pode ser só schema)
   schema        String   // Schema obrigatório
   description   String?  // Descrição ou observações
+  metadata      String?  // Metadados adicionais (JSON)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 }
