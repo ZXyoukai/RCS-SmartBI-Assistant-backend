@@ -1,16 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { Pool } = require('pg');
-const mysql = require('mysql2/promise');
 const { Client: PgClient } = require('pg');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
-const mariadb = require('mariadb');
 const { URL } = require('url');
 
+// Dynamic imports for other databases to avoid issues in serverless environments
+let mysql, sqlite3, sqlite, mariadb;
+
+const loadDatabaseDrivers = async () => {
+  try {
+    if (!mysql) {
+      mysql = require('mysql2/promise');
+    }
+  } catch (error) {
+    console.warn('MySQL driver not available:', error.message);
+  }
+
+  try {
+    if (!sqlite3) {
+      sqlite3 = require('sqlite3');
+      sqlite = require('sqlite');
+    }
+  } catch (error) {
+    console.warn('SQLite driver not available:', error.message);
+  }
+
+  try {
+    if (!mariadb) {
+      mariadb = require('mariadb');
+    }
+  } catch (error) {
+    console.warn('MariaDB driver not available:', error.message);
+  }
+};
 
 async function getSchemaFromURL(url, type) {
-
+  await loadDatabaseDrivers();
   // Implementação da lógica para obter o schema com base na URL e tipo do banco de dados
 }
 

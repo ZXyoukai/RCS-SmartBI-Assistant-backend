@@ -1,12 +1,47 @@
 const { Pool } = require('pg'); // PostgreSQL
-const mysql = require('mysql2/promise'); // MySQL
 const { Client: PgClient } = require('pg');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+
+// Dynamic imports for other databases to avoid issues in serverless environments
+let mysql, sqlite3, sqlite, mariadb;
+
+const loadDatabaseDrivers = async () => {
+  try {
+    if (!mysql) {
+      mysql = require('mysql2/promise');
+    }
+  } catch (error) {
+    console.warn('MySQL driver not available:', error.message);
+  }
+
+  try {
+    if (!sqlite3) {
+      sqlite3 = require('sqlite3');
+      sqlite = require('sqlite');
+    }
+  } catch (error) {
+    console.warn('SQLite driver not available:', error.message);
+  }
+
+  try {
+    if (!mariadb) {
+      mariadb = require('mariadb');
+    }
+  } catch (error) {
+    console.warn('MariaDB driver not available:', error.message);
+  }
+};
 
 class DatabaseConnectionService {
   constructor() {
     this.connectionTimeout = 10000; // 10 segundos
+    this.driversLoaded = false;
+  }
+
+  async ensureDriversLoaded() {
+    if (!this.driversLoaded) {
+      await loadDatabaseDrivers();
+      this.driversLoaded = true;
+    }
   }
 
   /**
@@ -17,6 +52,7 @@ class DatabaseConnectionService {
    */
   async testConnection(type, connectionString) {
     try {
+      await this.ensureDriversLoaded();
       console.log(`Testando conexão ${type}:`, connectionString.replace(/\/\/.*:.*@/, '//***:***@'));
 
       switch (type.toLowerCase()) {
@@ -25,9 +61,15 @@ class DatabaseConnectionService {
           return await this.testPostgreSQL(connectionString);
         
         case 'mysql':
+          if (!mysql) {
+            throw new Error('MySQL driver não está disponível neste ambiente');
+          }
           return await this.testMySQL(connectionString);
         
         case 'sqlite':
+          if (!sqlite3 || !sqlite) {
+            throw new Error('SQLite driver não está disponível neste ambiente');
+          }
           return await this.testSQLite(connectionString);
         
         default:
