@@ -114,16 +114,19 @@ router.post('/sql2nl',
 );
 
 /**
- * @route POST /ai/generate-mermaid
- * @desc Gera visualização Mermaid otimizada a partir de dados
+ * @route POST /ai/generate-chart
+ * @desc Gera visualização Chart.js otimizada a partir de dados
  * @access Private
  * @body {
  *   queryData: object,       // Dados da consulta com rows e columns (obrigatório)
  *   sessionId?: number,      // ID da sessão (opcional)
- *   databaseId?: number      // ID do banco de dados (opcional)
+ *   databaseId?: number,     // ID do banco de dados (opcional)
+ *   chartType?: string,      // Tipo específico de gráfico (opcional)
+ *   title?: string,          // Título personalizado (opcional)
+ *   options?: object         // Opções personalizadas Chart.js (opcional)
  * }
  */
-router.post('/generate-mermaid',
+router.post('/generate-chart',
   conversionRateLimit,
   (req, res, next) => {
     const { queryData } = req.body;
@@ -151,7 +154,7 @@ router.post('/generate-mermaid',
 
     next();
   },
-  aiController.generateMermaidVisualization
+  aiController.generateChartVisualization
 );
 
 router.get('/iaIterations/:id', aiController.getAIInteractions);

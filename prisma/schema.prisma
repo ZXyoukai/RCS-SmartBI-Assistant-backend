@@ -111,7 +111,7 @@ model ai_interactions {
   input_text        String    // Texto de entrada do usuário
   input_language    String    @default("pt-BR") // Idioma da entrada
   processed_query   String?   // SQL gerado ou texto processado
-  markdown          String?   // Markdown gerado ou texto processado
+  chartConfig       Json?   // Configuração do gráfico gerado
   ai_response       Json?     // Resposta completa da IA
   execution_status  String    @default("pending") // pending, success, error, fallback
   execution_time_ms Int?      // Tempo de execução em milissegundos
