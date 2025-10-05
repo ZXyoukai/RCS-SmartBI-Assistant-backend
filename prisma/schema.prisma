@@ -14,7 +14,7 @@ model users {
   password_hash String
   role          String?
   created_at    DateTime  @default(now())
-
+  is_active     Boolean   @default(false)
   queries           queries[]
   history           history[]
   exports           exports[]
@@ -23,6 +23,7 @@ model users {
   ai_chat_sessions  ai_chat_sessions[]
   ai_interactions   ai_interactions[]
   ai_insights       ai_insights[]
+  activation_token  account_activation_tokens?
 }
 
 model queries {
@@ -111,6 +112,7 @@ model ai_interactions {
   input_text        String    // Texto de entrada do usuário
   input_language    String    @default("pt-BR") // Idioma da entrada
   processed_query   String?   // SQL gerado ou texto processado
+  chartConfig       Json?   // Configuração do gráfico gerado
   ai_response       Json?     // Resposta completa da IA
   execution_status  String    @default("pending") // pending, success, error, fallback
   execution_time_ms Int?      // Tempo de execução em milissegundos
@@ -181,4 +183,18 @@ model associated_databases {
   metadata      String?  // Metadados adicionais (JSON)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+}
+
+// Tokens de ativação de conta
+model account_activation_tokens {
+  id               Int      @id @default(autoincrement())
+  user_id          Int      @unique
+  token            String   @unique
+  expires_at       DateTime
+  used             Boolean  @default(false)
+  is_first_activation Boolean @default(true) // Indica se é primeira ativação
+  temp_password    String?  // Senha temporária para primeiros usuários
+  created_at       DateTime @default(now())
+  
+  user             users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }

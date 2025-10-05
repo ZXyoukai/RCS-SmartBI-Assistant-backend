@@ -1,12 +1,12 @@
 const NL2SQLService = require('../services/nl2sqlService');
-const MermaidVisualizationService = require('../services/mermaidVisualizationService');
+const ChartJSVisualizationService = require('../services/chartjsVisualizationService');
 const { PrismaClient } = require('@prisma/client');
 const { executeReadOnlyQuery, getSchema } = require('../services/externalDbService');
 const { default: axios } = require('axios');
 
 const prisma = new PrismaClient();
 const nl2sqlService = new NL2SQLService();
-const mermaidService = new MermaidVisualizationService();
+const chartService = new ChartJSVisualizationService();
 
 class AIController {
   /**
@@ -120,32 +120,15 @@ class AIController {
 
       // Salva interação no banco
       // result.sql = result.reply;
-      const interaction = await prisma.ai_interactions.create({
-        data: {
-          session_id: activeSessionId,
-          user_id: userId,
-          interaction_type: 'nl2sql',
-          input_text: query,
-          input_language: language,
-          processed_query: result.reply,
-          ai_response: result,
-          execution_status: result.reply != '' ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
-          execution_time_ms: result.executionTime,
-          confidence_score: result.confidence,
-          fallback_used: result.fallbackUsed || false,
-          error_message: result.error,
-          metadata: result.metadata
-        }
-      });
-
-
+      
+      
       const querie = await prisma.queries.create({
         data: {
           user_id: userId,
           question_text: query,
         }
       });
-
+      
       await prisma.history.create({
         data: {
           user_id: userId,
@@ -154,8 +137,8 @@ class AIController {
           execution_time: result.executionTime / 1000 // Converte para segundos
         }
       });
-
-
+      
+      
       // Executa o SQL gerado se banco selecionado e query for SELECT
       let queryResult = null;
       let visualContent = null;
@@ -174,23 +157,22 @@ class AIController {
                 rows
               };
             
-
-              // Gera conteúdo visual com o novo serviço Mermaid otimizado
+              // Gera configuração Chart.js baseada nos dados da consulta
               if (queryResult) {
-                console.log('Gerando visualização Mermaid para os dados da consulta...');
-                visualContent = await mermaidService.generateMermaidVisualization(
+                console.log('Gerando visualização Chart.js para os dados da consulta...');
+                visualContent = await chartService.generateChartJSVisualization(
                   queryResult,
                   userId,
                   activeSessionId,
                   dbSchema,
-                type
-              );
-            }else if (!rows) {
+                  type
+                );
+              }
+            } else if (!rows) {
               queryResult = { type: 'table', columns: [], rows: [] };
-            }
-          }} catch (err) {
-            console.log('Erro na execução do SQL, tentando corrigir com IA...', err.message);
-            
+            }} catch (err) {
+              console.log('Erro na execução do SQL, tentando corrigir com IA...', err.message);
+              
             // Tenta corrigir o SQL automaticamente usando IA
             try {
               const fixedSqlResult = await this.fixSQLWithAI(result.sql, err.message, dbSchema, type, query);
@@ -214,8 +196,8 @@ class AIController {
                       correctionExplanation: fixedSqlResult.explanation
                     };
                     
-                    // Gera visualização para os dados corrigidos
-                    visualContent = await mermaidService.generateMermaidVisualization(
+                    // Gera visualização Chart.js para os dados corrigidos
+                    visualContent = await chartService.generateChartJSVisualization(
                       queryResult,
                       userId,
                       activeSessionId,
@@ -262,91 +244,119 @@ class AIController {
             if (!queryResult.type) {
               visualContent = {
                 success: false,
-                mermaid: `flowchart TD
-                  A[⚠️ Erro na Execução] --> B[${err.message.slice(0, 50)}...]
-                  B --> C[Tentativa de Correção IA]
-                  C --> D[${queryResult.aiCorrected ? 'Correção Bem-sucedida' : 'Correção Falhou'}]
-                  D --> E[${queryResult.aiCorrected ? 'Dados Retornados' : 'Verificar Manualmente'}]
-                  style A fill:#ffebee
-                  style B fill:#ffcdd2
-                  style C fill:#fff3e0
-                  style D fill:${queryResult.aiCorrected ? '#e8f5e8' : '#f3e5f5'}
-                  style E fill:${queryResult.aiCorrected ? '#e8f5e8' : '#ffebee'}`,
+                chartConfig: {
+                  type: 'bar',
+                  data: {
+                    labels: ['Execution Error'],
+                    datasets: [{
+                      label: 'Error Status',
+                      data: [1],
+                      backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                      borderColor: 'rgba(255, 99, 132, 1)',
+                      borderWidth: 1
+                    }]
+                  },
+                  options: {
+                    responsive: true,
+                    plugins: {
+                      title: {
+                        display: true,
+                        text: queryResult.aiCorrected ? 'SQL Auto-Corrected' : 'Execution Error'
+                      },
+                      legend: {
+                        display: false
+                      }
+                    },
+                    scales: {
+                      y: {
+                        display: false
+                      }
+                    }
+                  }
+                },
                 visualizationType: 'error',
                 chartTitle: queryResult.aiCorrected ? 'SQL Corrigido Automaticamente' : 'Erro de Execução',
-                executionTime: 0
+                executionTime: 0,
+                errorMessage: err.message,
+                aiCorrected: queryResult.aiCorrected || false
               };
             }
+            }
           }
+        } else if (result.sql) {
+          visualContent = {
+            success: true,
+            chartConfig: {
+              type: 'doughnut',
+              data: {
+                labels: ['Query Generated', 'Awaiting Execution'],
+                datasets: [{
+                  data: [1, 1],
+                  backgroundColor: [
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(201, 203, 207, 0.3)'
+                  ],
+                  borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(201, 203, 207, 1)'
+                  ],
+                  borderWidth: 2
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  title: {
+                    display: true,
+                    text: 'SQL Query Ready for Execution'
+                  },
+                  legend: {
+                    position: 'bottom'
+                  }
+                }
+              }
+            },
+            visualizationType: 'status',
+            chartTitle: 'SQL Pronto para Execução',
+            executionTime: 0,
+            message: 'Selecione uma base de dados para executar a consulta'
+          };
         }
-      } else if (result.sql) {
-        visualContent = {
-          success: false,
-          mermaid: `flowchart LR
-            A[🔍 Consulta Analisada] --> B[SQL Gerado]
-            B --> C[${result.explanation.slice(0, 30)}...]
-            C --> D[Selecione um banco]
-            D --> E[Execute a consulta]
-            style A fill:#e3f2fd
-            style B fill:#f1f8e9
-            style C fill:#fff3e0
-            style D fill:#f3e5f5
-            style E fill:#e8f5e8`,
-          visualizationType: 'flowchart',
-          chartTitle: 'SQL Pronto para Execução',
-          executionTime: 0
-        };
-      }
-      const reply = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-        //anthropic/claude-sonnet-4.5
-        model: 'anthropic/claude-sonnet-4.5',
-        messages: [
-          {
-        role: 'user',
-        content: `com base no resultado da consulta gera mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
-          simplemente responda com o markdown, nada mais.
-          alguns tipos :
-          sequenceDiagram
-          bar
-          pie
-          line
-          flowchart
-          mindmap
-          classDiagram
-          quadrant
-          erDiagram
-          timeline
-          Não use table.
-          Certifique-se de que o diagrama é válido e renderizável. Se os dados estiverem vazios, gere um diagrama simples indicando "Nenhum dado encontrado".
-          Tenha bastante atenção, para não gerar com erros de sintaxe(com como colocar as , quando devido e etc...), que não possam ser renderizados.
-          Depois de gerar o markdown, volte a analisar se nao tem erros de sintaxe, se tiver, corrija-os.`,
-          },
-        ],
-      }, {
-        headers: {
-          Authorization: 'Bearer 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',
-          'Content-Type': 'application/json',
-        },
-      }).then(response => response.data).catch(error => {
-        console.error('Erro ao chamar OpenRouter');
-        return null;
+
+      
+      // Salva a interação no banco
+      const interaction = await prisma.ai_interactions.create({
+        data: {
+          session_id: activeSessionId,
+          user_id: userId,
+          chartConfig: visualContent?.chartConfigSanitized || null, // Usa versão sem funções
+          interaction_type: 'nl2sql',
+          input_text: query,
+          input_language: language,
+          processed_query: result.sql,
+          ai_response: result,
+          execution_status: result ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
+          execution_time_ms: result.executionTime,
+          confidence_score: result.confidence,
+          fallback_used: result.fallbackUsed || false,
+          error_message: result.error,
+          metadata: result.metadata
+        }
       });
-      console.log('Resposta do OpenRouter:', reply);
-
-
+    
       res.json({
         success: true,
         data: {
           sql: result.sql,
           explanation: result.explanation,
           visualContent: visualContent || null,
+          chartConfig: visualContent?.chartConfig || null, // Configuração Chart.js
           confidence: result.confidence,
           sessionId: activeSessionId,
           interactionId: interaction.id,
           executionTime: result.executionTime,
           fromCache: result.fromCache || false,
           fallbackUsed: result.fallbackUsed || false,
-          markdown: reply ? reply.choices[0].message.content : null,
           queryResult,
           aiCorrected: queryResult?.aiCorrected || false,
           originalError: queryResult?.originalError || null,
@@ -358,8 +368,9 @@ class AIController {
             chartTitle: visualContent?.chartTitle,
             dataStats: visualContent?.dataStats,
             queryExecuted: !!queryResult && !queryResult.error,
-            mermaidGenerated: !!(visualContent && visualContent.mermaid),
+            chartGenerated: !!(visualContent && visualContent.chartConfig),
             totalDataPoints: visualContent?.metadata?.totalDataPoints || 0,
+            chartType: visualContent?.chartConfig?.type || null,
             aiCorrected: queryResult?.aiCorrected || false,
             automaticFix: queryResult?.aiCorrected ? {
               originalError: queryResult.originalError,
@@ -468,11 +479,11 @@ class AIController {
   }
 
   /**
-   * Gera visualização Mermaid otimizada
+   * Gera visualização Chart.js otimizada
    */
-  async generateMermaidVisualization(req, res) {
+  async generateChartVisualization(req, res) {
     try {
-      const { queryData, sessionId, databaseId } = req.body;
+      const { queryData, sessionId, databaseId, chartType, title, options = {} } = req.body;
       const userId = req.user.id;
 
       // Validações
@@ -489,9 +500,9 @@ class AIController {
         const newSession = await prisma.ai_chat_sessions.create({
           data: {
             user_id: userId,
-            session_token: `mermaid_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+            session_token: `chart_${Date.now()}_${Math.random().toString(36).substring(2)}`,
             status: 'active',
-            context_data: { type: 'mermaid_visualization' }
+            context_data: { type: 'chart_visualization' }
           }
         });
         activeSessionId = newSession.id;
@@ -510,8 +521,8 @@ class AIController {
         }
       }
 
-      // Gera visualização Mermaid
-      const result = await mermaidService.generateMermaidVisualization(
+      // Gera visualização Chart.js
+      const result = await chartService.generateChartJSVisualization(
         queryData,
         userId,
         activeSessionId,
@@ -519,14 +530,33 @@ class AIController {
         dbType
       );
 
+      // Aplica tipo específico se fornecido
+      if (chartType && ['bar', 'line', 'pie', 'doughnut', 'scatter', 'radar'].includes(chartType)) {
+        result.chartConfig.type = chartType;
+      }
+
+      // Aplica título personalizado
+      if (title) {
+        result.chartConfig.options.plugins.title.text = title;
+      }
+
+      // Aplica opções personalizadas
+      if (Object.keys(options).length > 0) {
+        result.chartConfig.options = {
+          ...result.chartConfig.options,
+          ...options
+        };
+      }
+
       // Salva interação no banco
       const interaction = await prisma.ai_interactions.create({
         data: {
           session_id: activeSessionId,
           user_id: userId,
-          interaction_type: 'mermaid_visualization',
+          interaction_type: 'chart_visualization',
           input_text: JSON.stringify(queryData),
-          processed_query: result.mermaid,
+          chartConfig: result.chartConfigSanitized || null, // Usa versão sem funções
+          processed_query: JSON.stringify(result.chartConfigSanitized || {}),
           ai_response: result,
           execution_status: result.success ? 'success' : 'error',
           execution_time_ms: result.executionTime,
@@ -538,7 +568,7 @@ class AIController {
       res.json({
         success: true,
         data: {
-          mermaid: result.mermaid,
+          chartConfig: result.chartConfig,
           visualizationType: result.visualizationType,
           chartTitle: result.chartTitle,
           dataStats: result.dataStats,
@@ -551,7 +581,7 @@ class AIController {
       });
 
     } catch (error) {
-      console.error('Erro no endpoint de visualização Mermaid:', error);
+      console.error('Erro no endpoint de visualização Chart.js:', error);
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
