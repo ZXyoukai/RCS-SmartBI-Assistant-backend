@@ -120,32 +120,15 @@ class AIController {
 
       // Salva interação no banco
       // result.sql = result.reply;
-      const interaction = await prisma.ai_interactions.create({
-        data: {
-          session_id: activeSessionId,
-          user_id: userId,
-          interaction_type: 'nl2sql',
-          input_text: query,
-          input_language: language,
-          processed_query: result.reply,
-          ai_response: result,
-          execution_status: result.reply != '' ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
-          execution_time_ms: result.executionTime,
-          confidence_score: result.confidence,
-          fallback_used: result.fallbackUsed || false,
-          error_message: result.error,
-          metadata: result.metadata
-        }
-      });
-
-
+      
+      
       const querie = await prisma.queries.create({
         data: {
           user_id: userId,
           question_text: query,
         }
       });
-
+      
       await prisma.history.create({
         data: {
           user_id: userId,
@@ -154,8 +137,8 @@ class AIController {
           execution_time: result.executionTime / 1000 // Converte para segundos
         }
       });
-
-
+      
+      
       // Executa o SQL gerado se banco selecionado e query for SELECT
       let queryResult = null;
       let visualContent = null;
@@ -174,7 +157,7 @@ class AIController {
                 rows
               };
             
-
+              
               // Gera conteúdo visual com o novo serviço Mermaid otimizado
               if (queryResult) {
                 console.log('Gerando visualização Mermaid para os dados da consulta...');
@@ -183,14 +166,14 @@ class AIController {
                   userId,
                   activeSessionId,
                   dbSchema,
-                type
-              );
-            }else if (!rows) {
-              queryResult = { type: 'table', columns: [], rows: [] };
-            }
-          }} catch (err) {
-            console.log('Erro na execução do SQL, tentando corrigir com IA...', err.message);
-            
+                  type
+                );
+              }else if (!rows) {
+                queryResult = { type: 'table', columns: [], rows: [] };
+              }
+            }} catch (err) {
+              console.log('Erro na execução do SQL, tentando corrigir com IA...', err.message);
+              
             // Tenta corrigir o SQL automaticamente usando IA
             try {
               const fixedSqlResult = await this.fixSQLWithAI(result.sql, err.message, dbSchema, type, query);
@@ -272,17 +255,17 @@ class AIController {
                   style C fill:#fff3e0
                   style D fill:${queryResult.aiCorrected ? '#e8f5e8' : '#f3e5f5'}
                   style E fill:${queryResult.aiCorrected ? '#e8f5e8' : '#ffebee'}`,
-                visualizationType: 'error',
-                chartTitle: queryResult.aiCorrected ? 'SQL Corrigido Automaticamente' : 'Erro de Execução',
-                executionTime: 0
-              };
+                  visualizationType: 'error',
+                  chartTitle: queryResult.aiCorrected ? 'SQL Corrigido Automaticamente' : 'Erro de Execução',
+                  executionTime: 0
+                };
+              }
             }
           }
-        }
-      } else if (result.sql) {
-        visualContent = {
-          success: false,
-          mermaid: `flowchart LR
+        } else if (result.sql) {
+          visualContent = {
+            success: false,
+            mermaid: `flowchart LR
             A[🔍 Consulta Analisada] --> B[SQL Gerado]
             B --> C[${result.explanation.slice(0, 30)}...]
             C --> D[Selecione um banco]
@@ -292,26 +275,27 @@ class AIController {
             style C fill:#fff3e0
             style D fill:#f3e5f5
             style E fill:#e8f5e8`,
-          visualizationType: 'flowchart',
-          chartTitle: 'SQL Pronto para Execução',
-          executionTime: 0
-        };
-      }
-      const reply = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-        //anthropic/claude-sonnet-4.5
-        model: 'anthropic/claude-sonnet-4.5',
-        messages: [
-          {
-        role: 'user',
-        content: `com base no resultado da consulta gera mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
-          simplemente responda com o markdown, nada mais.
-          alguns tipos :
-          sequenceDiagram
-          bar
-          pie
-          line
-          flowchart
-          mindmap
+            visualizationType: 'flowchart',
+            chartTitle: 'SQL Pronto para Execução',
+            executionTime: 0
+          };
+        }
+        const reply = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+          //anthropic/claude-sonnet-4.5
+          model: 'anthropic/claude-sonnet-4.5',
+          // model: 'deepseek/deepseek-chat-v3.1:free'
+          // model: 'alibaba/tongyi-deepresearch-30b-a3b:free',
+          messages: [
+            {
+              role: 'user',
+              content: `com base no resultado da consulta gera mermaid adequado para apresentar: ${JSON.stringify(queryResult)}
+              simplemente responda com o markdown, nada mais.
+              alguns tipos :
+              sequenceDiagram
+              xychart-beta
+              pie
+              flowchart
+              mindmap
           classDiagram
           quadrant
           erDiagram
@@ -319,23 +303,43 @@ class AIController {
           Não use table.
           Certifique-se de que o diagrama é válido e renderizável. Se os dados estiverem vazios, gere um diagrama simples indicando "Nenhum dado encontrado".
           Tenha bastante atenção, para não gerar com erros de sintaxe(com como colocar as , quando devido e etc...), que não possam ser renderizados.
-          Depois de gerar o markdown, volte a analisar se nao tem erros de sintaxe, se tiver, corrija-os.`,
-          },
-        ],
-      }, {
-        headers: {
-          Authorization: 'Bearer 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',
-          'Content-Type': 'application/json',
+          Depois de gerar o markdown, volte a analisar se nao tem erros de sintaxe, se tiver, corrija-os.
+          Gera mermaid, não markdown com bloco mermaid.
+          Todo apresentação deve ser feita em em ingles para evitar problemas de lexical error`,
         },
-      }).then(response => response.data).catch(error => {
-        console.error('Erro ao chamar OpenRouter');
-        return null;
-      });
-      console.log('Resposta do OpenRouter:', reply);
-
-
-      res.json({
-        success: true,
+      ],
+    }, {
+      headers: {
+        Authorization: 'Bearer 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',
+        'Content-Type': 'application/json',
+      },
+    }).then(response => response.data).catch(error => {
+      console.error('Erro ao chamar OpenRouter');
+      return null;
+    });
+    console.log('Resposta do OpenRouter:', reply);
+    
+    const interaction = await prisma.ai_interactions.create({
+      data: {
+        session_id: activeSessionId,
+        user_id: userId,
+        markdown: visualContent?.mermaid,
+        interaction_type: 'nl2sql',
+        input_text: query,
+        input_language: language,
+        processed_query: result.sql,
+        ai_response: result,
+        execution_status: result ? 'success' : (result.fallbackUsed ? 'fallback' : 'error'),
+        execution_time_ms: result.executionTime,
+        confidence_score: result.confidence,
+        fallback_used: result.fallbackUsed || false,
+        error_message: result.error,
+        metadata: result.metadata
+      }
+    });
+    
+    res.json({
+      success: true,
         data: {
           sql: result.sql,
           explanation: result.explanation,
@@ -346,7 +350,7 @@ class AIController {
           executionTime: result.executionTime,
           fromCache: result.fromCache || false,
           fallbackUsed: result.fallbackUsed || false,
-          markdown: reply ? reply.choices[0].message.content : null,
+          markdown: visualContent?.mermaid,
           queryResult,
           aiCorrected: queryResult?.aiCorrected || false,
           originalError: queryResult?.originalError || null,
