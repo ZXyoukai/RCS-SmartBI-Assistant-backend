@@ -1,1 +1,0 @@
-```mermaid\n%%{init: {'theme':'base'}}%%\nxychart-beta\n    title \"Quantidade de Usuários por Mês\"\n    x-axis [\"Abril 2025\", \"Maio 2025\", \"Junho 2025\"]\n    y-axis \"Usuários\" 0 --> 25\n    bar [5, 1, 20]\n```
