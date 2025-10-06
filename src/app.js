@@ -75,14 +75,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler - catch all undefined routes
-app.all('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-    path: req.originalUrl
-  });
-});
 
 // Only start server if not in Vercel environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
