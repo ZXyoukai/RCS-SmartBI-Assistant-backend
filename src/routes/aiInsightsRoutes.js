@@ -106,7 +106,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { 
-      interaction_id,
       insight_type,
       title,
       description,
@@ -123,16 +122,6 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
     
-    // Se interaction_id for fornecido, verificar se pertence ao usuário
-    if (interaction_id) {
-      const interaction = await prisma.ai_interactions.findFirst({
-        where: { id: Number(interaction_id), user_id: req.user.id }
-      });
-      
-      if (!interaction) {
-        return res.status(400).json({ error: 'Interação não encontrada ou não pertence ao usuário' });
-      }
-    }
     
     const insight = await prisma.ai_insights.create({
       data: {

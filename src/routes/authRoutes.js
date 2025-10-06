@@ -122,6 +122,9 @@ router.post('/register', async (req, res) => {
 
       res.status(201).json({
         success: true,
+        email: user.email,
+        id: user.id,
+        name: user.name,
         message: 'Usuário registrado com sucesso. Email de ativação enviado com senha temporária.',
         user_role: user.role,
         expiry_time: expiresAt,
