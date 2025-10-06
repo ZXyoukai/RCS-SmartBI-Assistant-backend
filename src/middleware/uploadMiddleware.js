@@ -1,25 +1,9 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 
-// Garante que o diretório de uploads existe
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configuração do storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    // Gera nome único para o arquivo
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    cb(null, `upload-${uniqueSuffix}${extension}`);
-  }
-});
+// Para Vercel - usar memoryStorage em vez de diskStorage
+// A Vercel tem sistema de arquivos read-only, então não podemos salvar arquivos no disco
+const storage = multer.memoryStorage();
 
 // Filtro de arquivos
 const fileFilter = (req, file, cb) => {
@@ -44,7 +28,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configuração do multer
+// Configuração do multer com memoryStorage
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
@@ -91,11 +75,15 @@ const uploadMiddleware = (req, res, next) => {
       });
     }
     
+    // Arquivo agora está em req.file.buffer (na memória)
+    // Adicionar informações úteis para processamento
+    req.file.originalPath = req.file.originalname;
+    req.file.tempPath = null; // Não há arquivo temporário
+    
     next();
   });
 };
 
 module.exports = {
-  uploadMiddleware,
-  uploadsDir
-};
+  uploadMiddleware
+};;
