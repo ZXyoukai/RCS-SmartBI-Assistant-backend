@@ -80,7 +80,7 @@ router.post('/register', async (req, res) => {
     // Cria usuário com dados temporários
     const user = await prisma.users.create({
       data: {
-        name: 'Usuário Pendente', // Nome temporário
+        name: "Agente_" + crypto.randomUUID().slice(0, 8), // Nome temporário
         email: email.toLowerCase(),
         password_hash,
         role: 'user',

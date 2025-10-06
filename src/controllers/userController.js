@@ -16,7 +16,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getUser = async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: 'Id obrigatório' });
-  
+
   try {
     const user = await prisma.users.findUnique({ where: { id: Number(id) } });
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -68,7 +68,7 @@ exports.getUserByToken = async (req, res) => {
 
     const decoded = jwtDecode(token);
     const user = await prisma.users.findUnique({ where: { id: decoded.id } });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
