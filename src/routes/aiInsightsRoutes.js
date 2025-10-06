@@ -109,36 +109,69 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const {
       database_id,
-      interaction_id,
+      session_token,
       status = 'active'
     } = req.body;
 
-
-    if (!database_id ) {
+    if (!database_id) {
       return res.status(400).json({
-        error: 'Tipo, descrição e análise de dados são obrigatórios'
+        error: 'Database ID é obrigatório'
       });
     }
+
     const insight_type = "Database Analysis";
     const title = insight_type + ' General';
     const confidence_level = "high";
     const impact_score = randomInt(70, 100);
+    
     const database = await prisma.associated_databases.findFirst({
       where: { id: Number(database_id) }
     });
+    
     if (!database) {
       return res.status(404).json({ error: 'Banco de dados não encontrado' });
     }
-    console.log(database);
 
     if (database.type !== 'postgresql' && database.type !== 'postgres' && database.type !== 'PostgreSQL' && database.type !== 'Postgres') {
       return res.status(400).json({ error: 'Apenas bancos PostgreSQL são suportados no momento para insights.' });
     }
+
+    // 1. Criar ou buscar sessão
+    let session;
+    if (session_token) {
+      session = await prisma.ai_chat_sessions.findFirst({
+        where: { session_token, user_id: req.user.id }
+      });
+    }
+
+    if (!session) {
+      session = await prisma.ai_chat_sessions.create({
+        data: {
+          user_id: req.user.id,
+          session_token: session_token || `insight_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          status: 'active'
+        }
+      });
+    }
+
+    // 2. Registrar início da interação
+    const startTime = Date.now();
+    const interaction = await prisma.ai_interactions.create({
+      data: {
+        session_id: session.id,
+        user_id: req.user.id,
+        interaction_type: 'insight',
+        input_text: `Análise geral do banco: ${database.name}`,
+        status: 'processing'
+      }
+    });
+
     const data_analysis = "data_" + database.type;
-    var response;
+    let response;
+    
     try {
       if (!database.url) {
-        return res.status(400).json({ error: 'URL de conexão do banco ausente' });
+        throw new Error('URL de conexão do banco ausente');
       }
 
       const data = {
@@ -150,16 +183,43 @@ router.post('/', authMiddleware, async (req, res) => {
         data,
         {
           headers: { 'Content-Type': 'application/json' },
+          timeout: 30000 // 30 segundos de timeout
         }
       );
 
     } catch (error) {
+      // 3. Atualizar interação com erro
+      const executionTime = Date.now() - startTime;
+      await prisma.ai_interactions.update({
+        where: { id: interaction.id },
+        data: {
+          status: 'error',
+          error_message: error.response?.data?.message || error.message,
+          execution_time: executionTime
+        }
+      });
+
       console.error('Erro ao chamar API de insights:', error.response?.data || error.message);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor ao gerar insights' });
     }
+
+    // 4. Calcular tempo de execução
+    const executionTime = Date.now() - startTime;
+
+    // 5. Atualizar interação com sucesso
+    await prisma.ai_interactions.update({
+      where: { id: interaction.id },
+      data: {
+        status: 'completed',
+        output_text: response.data.gemini_response,
+        execution_time: executionTime
+      }
+    });
+
+    // 6. Criar insight
     const insight = await prisma.ai_insights.create({
       data: {
-        interaction_id: interaction_id || 11,
+        interaction_id: interaction.id,
         user_id: req.user.id,
         insight_type,
         title,
@@ -172,7 +232,18 @@ router.post('/', authMiddleware, async (req, res) => {
       }
     });
 
-    res.status(201).json(insight);
+    res.status(201).json({
+      insight,
+      session: {
+        id: session.id,
+        session_token: session.session_token
+      },
+      interaction: {
+        id: interaction.id,
+        execution_time: executionTime,
+        type: 'insight'
+      }
+    });
   } catch (error) {
     console.error('Erro ao criar insight:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -184,36 +255,68 @@ router.post('/specific', authMiddleware, async (req, res) => {
     const {
       database_id,
       insight_type,
-      interaction_id,
+      session_token,
       status = 'active'
     } = req.body;
 
-
     if (!database_id || !insight_type) {
       return res.status(400).json({
-        error: 'Tipo, descrição e análise de dados são obrigatórios'
+        error: 'Database ID e tipo de insight são obrigatórios'
       });
     }
 
     const title = insight_type + ' Insight';
     const confidence_level = "high";
     const impact_score = randomInt(70, 100);
+    
     const database = await prisma.associated_databases.findFirst({
       where: { id: Number(database_id) }
     });
+    
     if (!database) {
       return res.status(404).json({ error: 'Banco de dados não encontrado' });
     }
-    console.log(database);
 
     if (database.type !== 'postgresql' && database.type !== 'postgres' && database.type !== 'PostgreSQL' && database.type !== 'Postgres') {
       return res.status(400).json({ error: 'Apenas bancos PostgreSQL são suportados no momento para insights.' });
     }
+
+    // 1. Criar ou buscar sessão
+    let session;
+    if (session_token) {
+      session = await prisma.ai_chat_sessions.findFirst({
+        where: { session_token, user_id: req.user.id }
+      });
+    }
+
+    if (!session) {
+      session = await prisma.ai_chat_sessions.create({
+        data: {
+          user_id: req.user.id,
+          session_token: session_token || `insight_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          status: 'active'
+        }
+      });
+    }
+
+    // 2. Registrar início da interação
+    const startTime = Date.now();
+    const interaction = await prisma.ai_interactions.create({
+      data: {
+        session_id: session.id,
+        user_id: req.user.id,
+        interaction_type: 'insight',
+        input_text: `${insight_type} para o banco: ${database.name}`,
+        status: 'processing'
+      }
+    });
+
     const data_analysis = "data_" + database.type;
-    var response;
+    let response;
+    
     try {
       if (!database.url) {
-        return res.status(400).json({ error: 'URL de conexão do banco ausente' });
+        throw new Error('URL de conexão do banco ausente');
       }
 
       const data = {
@@ -226,35 +329,80 @@ router.post('/specific', authMiddleware, async (req, res) => {
         data,
         {
           headers: { 'Content-Type': 'application/json' },
+          timeout: 30000 // 30 segundos de timeout
         }
       );
 
     } catch (error) {
+      // 3. Atualizar interação com erro
+      const executionTime = Date.now() - startTime;
+      await prisma.ai_interactions.update({
+        where: { id: interaction.id },
+        data: {
+          status: 'error',
+          error_message: error.response?.data?.message || error.message,
+          execution_time: executionTime
+        }
+      });
+
       console.error('Erro ao chamar API de insights:', error.response?.data || error.message);
-      return res.status(500).json({ error: 'Erro interno do servidor' });
+      return res.status(500).json({ error: 'Erro interno do servidor ao gerar insights' });
     }
 
-    console.log(response.data.gemini_response);
+    // 4. Calcular tempo de execução
+    const executionTime = Date.now() - startTime;
+
+    // 5. Validar resposta
     if (!response || !response.data.gemini_response) {
+      await prisma.ai_interactions.update({
+        where: { id: interaction.id },
+        data: {
+          status: 'error',
+          error_message: 'Resposta inválida da API de insights',
+          execution_time: executionTime
+        }
+      });
       return res.status(500).json({ error: 'Resposta inválida da API de insights' });
     }
 
-    const insight = await prisma.ai_insights.create({
+    // 6. Atualizar interação com sucesso
+    await prisma.ai_interactions.update({
+      where: { id: interaction.id },
       data: {
-      interaction_id: interaction_id || 11,
-      user_id: req.user.id,
-      insight_type,
-      title,
-      description: response.data.gemini_response,
-      data_analysis,
-      confidence_level,
-      impact_score,
-      status,
-      expires_at: new Date(Date.now() + 60 * 60 * 1000)
+        status: 'completed',
+        output_text: response.data.gemini_response,
+        execution_time: executionTime
       }
     });
 
-    res.status(201).json(insight);
+    // 7. Criar insight
+    const insight = await prisma.ai_insights.create({
+      data: {
+        interaction_id: interaction.id,
+        user_id: req.user.id,
+        insight_type,
+        title,
+        description: response.data.gemini_response,
+        data_analysis,
+        confidence_level,
+        impact_score,
+        status,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000)
+      }
+    });
+
+    res.status(201).json({
+      insight,
+      session: {
+        id: session.id,
+        session_token: session.session_token
+      },
+      interaction: {
+        id: interaction.id,
+        execution_time: executionTime,
+        type: 'insight'
+      }
+    });
   } catch (error) {
     console.error('Erro ao criar insight:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
