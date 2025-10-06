@@ -3,26 +3,28 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { authMiddleware } = require('../middleware/authMiddleware');
+const { randomInt } = require('crypto');
+const { default: axios } = require('axios');
 
 // Listar insights do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      insight_type, 
-      confidence_level, 
+    const {
+      page = 1,
+      limit = 20,
+      insight_type,
+      confidence_level,
       status,
-      active_only = true 
+      active_only = true
     } = req.query;
     const offset = (page - 1) * limit;
-    
+
     const whereClause = { user_id: req.user.id };
     if (insight_type) whereClause.insight_type = insight_type;
     if (confidence_level) whereClause.confidence_level = confidence_level;
     if (status) whereClause.status = status;
     if (active_only === 'true') whereClause.status = 'active';
-    
+
     // Filtrar insights não expirados se não especificado
     if (!status) {
       whereClause.OR = [
@@ -30,7 +32,7 @@ router.get('/', authMiddleware, async (req, res) => {
         { expires_at: { gte: new Date() } }
       ];
     }
-    
+
     const insights = await prisma.ai_insights.findMany({
       where: whereClause,
       orderBy: [
@@ -56,9 +58,9 @@ router.get('/', authMiddleware, async (req, res) => {
         }
       }
     });
-    
+
     const total = await prisma.ai_insights.count({ where: whereClause });
-    
+
     res.json({
       data: insights,
       pagination: {
@@ -93,7 +95,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
         }
       }
     });
-    
+
     if (!insight) return res.status(404).json({ error: 'Insight não encontrado' });
     res.json(insight);
   } catch (error) {
@@ -105,48 +107,153 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Criar novo insight
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { 
-      insight_type,
-      title,
-      description,
-      data_analysis,
-      confidence_level,
-      impact_score,
-      status = 'active',
-      expires_at
+    const {
+      database_id,
+      interaction_id,
+      status = 'active'
     } = req.body;
-    
-    if (!insight_type || !title || !description || !data_analysis) {
-      return res.status(400).json({ 
-        error: 'Tipo, título, descrição e análise de dados são obrigatórios' 
+
+
+    if (!database_id ) {
+      return res.status(400).json({
+        error: 'Tipo, descrição e análise de dados são obrigatórios'
       });
     }
-    
-    
+    const insight_type = "Database Analysis";
+    const title = insight_type + ' General';
+    const confidence_level = "high";
+    const impact_score = randomInt(70, 100);
+    const database = await prisma.associated_databases.findFirst({
+      where: { id: Number(database_id) }
+    });
+    if (!database) {
+      return res.status(404).json({ error: 'Banco de dados não encontrado' });
+    }
+    console.log(database);
+
+    if (database.type !== 'postgresql' && database.type !== 'postgres' && database.type !== 'PostgreSQL' && database.type !== 'Postgres') {
+      return res.status(400).json({ error: 'Apenas bancos PostgreSQL são suportados no momento para insights.' });
+    }
+    const data_analysis = "data_" + database.type;
+    var response;
+    try {
+      if (!database.url) {
+        return res.status(400).json({ error: 'URL de conexão do banco ausente' });
+      }
+
+      const data = {
+        database_url: database.url,
+      };
+
+      response = await axios.post(
+        `${process.env.INSIGHTS_API}/analyze-database`,
+        data,
+        {
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+    } catch (error) {
+      console.error('Erro ao chamar API de insights:', error.response?.data || error.message);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
     const insight = await prisma.ai_insights.create({
       data: {
-        interaction_id: interaction_id ? Number(interaction_id) : null,
+        interaction_id: interaction_id || 11,
         user_id: req.user.id,
         insight_type,
         title,
-        description,
+        description: response.data.gemini_response,
         data_analysis,
         confidence_level,
         impact_score,
         status,
-        expires_at: expires_at ? new Date(expires_at) : null
-      },
-      include: {
-        interaction: {
-          select: {
-            id: true,
-            interaction_type: true,
-            input_text: true
-          }
-        }
+        expires_at: new Date(Date.now() + 60 * 60 * 1000)
       }
     });
-    
+
+    res.status(201).json(insight);
+  } catch (error) {
+    console.error('Erro ao criar insight:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+router.post('/specific', authMiddleware, async (req, res) => {
+  try {
+    const {
+      database_id,
+      insight_type,
+      interaction_id,
+      status = 'active'
+    } = req.body;
+
+
+    if (!database_id || !insight_type) {
+      return res.status(400).json({
+        error: 'Tipo, descrição e análise de dados são obrigatórios'
+      });
+    }
+
+    const title = insight_type + ' Insight';
+    const confidence_level = "high";
+    const impact_score = randomInt(70, 100);
+    const database = await prisma.associated_databases.findFirst({
+      where: { id: Number(database_id) }
+    });
+    if (!database) {
+      return res.status(404).json({ error: 'Banco de dados não encontrado' });
+    }
+    console.log(database);
+
+    if (database.type !== 'postgresql' && database.type !== 'postgres' && database.type !== 'PostgreSQL' && database.type !== 'Postgres') {
+      return res.status(400).json({ error: 'Apenas bancos PostgreSQL são suportados no momento para insights.' });
+    }
+    const data_analysis = "data_" + database.type;
+    var response;
+    try {
+      if (!database.url) {
+        return res.status(400).json({ error: 'URL de conexão do banco ausente' });
+      }
+
+      const data = {
+        database_url: database.url,
+        insight_request: insight_type
+      };
+
+      response = await axios.post(
+        `${process.env.INSIGHTS_API}/analyze-database`,
+        data,
+        {
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+    } catch (error) {
+      console.error('Erro ao chamar API de insights:', error.response?.data || error.message);
+      return res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+
+    console.log(response.data.gemini_response);
+    if (!response || !response.data.gemini_response) {
+      return res.status(500).json({ error: 'Resposta inválida da API de insights' });
+    }
+
+    const insight = await prisma.ai_insights.create({
+      data: {
+      interaction_id: interaction_id || 11,
+      user_id: req.user.id,
+      insight_type,
+      title,
+      description: response.data.gemini_response,
+      data_analysis,
+      confidence_level,
+      impact_score,
+      status,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000)
+      }
+    });
+
     res.status(201).json(insight);
   } catch (error) {
     console.error('Erro ao criar insight:', error);
@@ -157,7 +264,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Atualizar insight
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const { 
+    const {
       title,
       description,
       data_analysis,
@@ -166,7 +273,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       status,
       expires_at
     } = req.body;
-    
+
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
@@ -175,18 +282,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (impact_score !== undefined) updateData.impact_score = impact_score;
     if (status !== undefined) updateData.status = status;
     if (expires_at !== undefined) updateData.expires_at = expires_at ? new Date(expires_at) : null;
-    
+
     const insight = await prisma.ai_insights.updateMany({
-      where: { id: Number(req.params.id), user_id: req.user.id },
+      where: { id: Number(req.params.id) },
       data: updateData
     });
-    
+
     if (insight.count === 0) {
       return res.status(404).json({ error: 'Insight não encontrado' });
     }
-    
+
     const updatedInsight = await prisma.ai_insights.findFirst({
-      where: { id: Number(req.params.id), user_id: req.user.id },
+      where: { id: Number(req.params.id) },
       include: {
         interaction: {
           select: {
@@ -197,7 +304,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         }
       }
     });
-    
+
     res.json(updatedInsight);
   } catch (error) {
     console.error('Erro ao atualizar insight:', error);
@@ -209,13 +316,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const deletedInsight = await prisma.ai_insights.deleteMany({
-      where: { id: Number(req.params.id), user_id: req.user.id }
+      where: { id: Number(req.params.id) }
     });
-    
+
     if (deletedInsight.count === 0) {
       return res.status(404).json({ error: 'Insight não encontrado' });
     }
-    
+
     res.json({ success: true, message: 'Insight removido com sucesso' });
   } catch (error) {
     console.error('Erro ao deletar insight:', error);
@@ -227,18 +334,18 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 router.post('/:id/archive', authMiddleware, async (req, res) => {
   try {
     const insight = await prisma.ai_insights.updateMany({
-      where: { id: Number(req.params.id), user_id: req.user.id },
+      where: { id: Number(req.params.id) },
       data: { status: 'archived' }
     });
-    
+
     if (insight.count === 0) {
       return res.status(404).json({ error: 'Insight não encontrado' });
     }
-    
+
     const updatedInsight = await prisma.ai_insights.findFirst({
-      where: { id: Number(req.params.id), user_id: req.user.id }
+      where: { id: Number(req.params.id) }
     });
-    
+
     res.json(updatedInsight);
   } catch (error) {
     console.error('Erro ao arquivar insight:', error);
@@ -250,18 +357,18 @@ router.post('/:id/archive', authMiddleware, async (req, res) => {
 router.post('/:id/dismiss', authMiddleware, async (req, res) => {
   try {
     const insight = await prisma.ai_insights.updateMany({
-      where: { id: Number(req.params.id), user_id: req.user.id },
+      where: { id: Number(req.params.id) },
       data: { status: 'dismissed' }
     });
-    
+
     if (insight.count === 0) {
       return res.status(404).json({ error: 'Insight não encontrado' });
     }
-    
+
     const updatedInsight = await prisma.ai_insights.findFirst({
-      where: { id: Number(req.params.id), user_id: req.user.id }
+      where: { id: Number(req.params.id) }
     });
-    
+
     res.json(updatedInsight);
   } catch (error) {
     console.error('Erro ao dispensar insight:', error);
@@ -273,21 +380,21 @@ router.post('/:id/dismiss', authMiddleware, async (req, res) => {
 router.get('/interaction/:interactionId', authMiddleware, async (req, res) => {
   try {
     const { interactionId } = req.params;
-    
+
     // Verificar se a interação pertence ao usuário
     const interaction = await prisma.ai_interactions.findFirst({
       where: { id: Number(interactionId), user_id: req.user.id }
     });
-    
+
     if (!interaction) {
       return res.status(404).json({ error: 'Interação não encontrada ou não pertence ao usuário' });
     }
-    
+
     const insights = await prisma.ai_insights.findMany({
       where: { interaction_id: Number(interactionId) },
       orderBy: { created_at: 'desc' }
     });
-    
+
     res.json(insights);
   } catch (error) {
     console.error('Erro ao buscar insights da interação:', error);
@@ -306,10 +413,10 @@ router.delete('/cleanup/expired', authMiddleware, async (req, res) => {
         }
       }
     });
-    
-    res.json({ 
-      success: true, 
-      message: `${deletedInsights.count} insights expirados removidos` 
+
+    res.json({
+      success: true,
+      message: `${deletedInsights.count} insights expirados removidos`
     });
   } catch (error) {
     console.error('Erro ao limpar insights expirados:', error);
