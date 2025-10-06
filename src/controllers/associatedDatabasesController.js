@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const FileProcessorService = require('../services/fileProcessorService');
 const DatabaseConnectionService = require('../services/databaseConnectionService');
-const fs = require('fs').promises;
 const path = require('path');
 
 const prisma = new PrismaClient();
@@ -184,20 +183,17 @@ module.exports = {
       // Valida tipo do arquivo
       const fileType = fileProcessor.validateFileType(file.mimetype, file.originalname);
       if (!fileType) {
-        // Remove arquivo inválido
-        await fs.unlink(file.path);
         return res.status(400).json({
           success: false,
           error: 'Tipo de arquivo não suportado. Formatos aceitos: CSV, Excel, SQL, JSON'
         });
       }
 
-      // Processa o arquivo
+      // Processa o arquivo usando buffer (compatível com Vercel)
       console.log(`Processando arquivo ${fileType}:`, file.originalname);
-      const processResult = await fileProcessor.processFile(file.path, fileType);
+      const processResult = await fileProcessor.processFile(file.buffer, file.originalname, fileType);
 
-      // Remove o arquivo temporário
-      await fs.unlink(file.path);
+      // Não há arquivo temporário para remover - usando memória apenas
 
       // Cria entrada no banco
       const dbName = name || path.parse(file.originalname).name;
@@ -239,14 +235,7 @@ module.exports = {
     } catch (error) {
       console.error('Erro no upload de arquivo:', error);
 
-      // Remove arquivo em caso de erro
-      if (req.file && req.file.path) {
-        try {
-          await fs.unlink(req.file.path);
-        } catch (unlinkError) {
-          console.error('Erro ao remover arquivo:', unlinkError);
-        }
-      }
+      // Não há arquivo físico para remover - usando memória apenas
 
       res.status(500).json({
         success: false,

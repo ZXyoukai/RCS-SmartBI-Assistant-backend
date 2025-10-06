@@ -3,8 +3,6 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { authMiddleware } = require('../middleware/authMiddleware');
-const path = require('path');
-const fs = require('fs');
 
 // Listar exports do usuário
 router.get('/', authMiddleware, async (req, res) => {
@@ -125,7 +123,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // Deletar export
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    // Buscar o export primeiro para verificar se existe arquivo
+    // Buscar o export primeiro para verificar se existe
     const exportItem = await prisma.exports.findFirst({
       where: { id: Number(req.params.id), user_id: req.user.id }
     });
@@ -133,21 +131,12 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     if (!exportItem) {
       return res.status(404).json({ error: 'Export não encontrado' });
     }
-    
-    // Deletar arquivo físico se existir
-    if (exportItem.file_path && fs.existsSync(exportItem.file_path)) {
-      try {
-        fs.unlinkSync(exportItem.file_path);
-      } catch (fileError) {
-        console.warn('Erro ao deletar arquivo físico:', fileError);
-      }
-    }
-    
-    // Deletar registro do banco
+
+    // Deletar registro do banco (não há arquivos físicos na Vercel)
     await prisma.exports.delete({
       where: { id: Number(req.params.id) }
     });
-    
+
     res.json({ success: true, message: 'Export removido com sucesso' });
   } catch (error) {
     console.error('Erro ao deletar export:', error);
@@ -155,7 +144,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Download do arquivo de export
+// Download do arquivo de export (não disponível na Vercel)
 router.get('/:id/download', authMiddleware, async (req, res) => {
   try {
     const exportItem = await prisma.exports.findFirst({
@@ -166,14 +155,19 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Export não encontrado' });
     }
     
-    if (!exportItem.file_path || !fs.existsSync(exportItem.file_path)) {
-      return res.status(404).json({ error: 'Arquivo não encontrado' });
-    }
-    
-    const fileName = path.basename(exportItem.file_path);
-    res.download(exportItem.file_path, fileName);
+    // Na Vercel, os arquivos não são persistidos no sistema de arquivos
+    // Retornar dados do export em vez de arquivo
+    res.json({
+      success: false,
+      error: 'Download de arquivos não disponível em ambiente serverless. Use a API para obter os dados.',
+      exportData: {
+        id: exportItem.id,
+        type: exportItem.file_type,
+        created_at: exportItem.created_at
+      }
+    });
   } catch (error) {
-    console.error('Erro ao fazer download:', error);
+    console.error('Erro ao processar download:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -185,31 +179,8 @@ router.delete('/cleanup/old', authMiddleware, async (req, res) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
     
-    // Buscar exports antigos primeiro para deletar arquivos
-    const oldExports = await prisma.exports.findMany({
-      where: {
-        user_id: req.user.id,
-        created_at: {
-          lt: cutoffDate
-        }
-      }
-    });
-    
-    // Deletar arquivos físicos
-    let filesDeleted = 0;
-    for (const exp of oldExports) {
-      if (exp.file_path && fs.existsSync(exp.file_path)) {
-        try {
-          fs.unlinkSync(exp.file_path);
-          filesDeleted++;
-        } catch (fileError) {
-          console.warn('Erro ao deletar arquivo:', fileError);
-        }
-      }
-    }
-    
-    // Deletar registros do banco
-    const deletedExports = await prisma.exports.deleteMany({
+    // Deletar exports antigos (sem arquivos físicos na Vercel)
+    const result = await prisma.exports.deleteMany({
       where: {
         user_id: req.user.id,
         created_at: {
@@ -220,7 +191,8 @@ router.delete('/cleanup/old', authMiddleware, async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: `${deletedExports.count} exports removidos (${filesDeleted} arquivos deletados)` 
+      message: `${result.count} exports antigos removidos com sucesso`,
+      deletedCount: result.count
     });
   } catch (error) {
     console.error('Erro ao limpar exports antigos:', error);

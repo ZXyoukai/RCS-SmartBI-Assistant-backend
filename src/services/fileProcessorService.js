@@ -1,8 +1,7 @@
-const fs = require('fs').promises;
 const path = require('path');
 const csv = require('csv-parser');
 const XLSX = require('xlsx');
-const { createReadStream } = require('fs');
+const { Readable } = require('stream');
 
 class FileProcessorService {
   constructor() {
@@ -15,17 +14,21 @@ class FileProcessorService {
   }
 
   /**
-   * Processa arquivo CSV e gera schema
-   * @param {string} filePath - Caminho do arquivo
+   * Processa arquivo CSV a partir de buffer
+   * @param {Buffer} fileBuffer - Buffer do arquivo
+   * @param {string} fileName - Nome do arquivo
    * @returns {Object} Schema e dados de amostra
    */
-  async processCSV(filePath) {
+  async processCSV(fileBuffer, fileName) {
     return new Promise((resolve, reject) => {
       const results = [];
       const schema = {};
       let headerProcessed = false;
 
-      createReadStream(filePath)
+      // Criar stream a partir do buffer
+      const stream = Readable.from(fileBuffer.toString());
+      
+      stream
         .pipe(csv())
         .on('data', (data) => {
           if (!headerProcessed) {
@@ -47,7 +50,7 @@ class FileProcessorService {
         .on('end', () => {
           resolve({
             schema: { 
-              [path.basename(filePath, '.csv')]: {
+              [path.basename(fileName, '.csv')]: {
                 columns: schema,
                 type: 'table',
                 source: 'csv_upload'
@@ -63,13 +66,14 @@ class FileProcessorService {
   }
 
   /**
-   * Processa arquivo Excel e gera schema
-   * @param {string} filePath - Caminho do arquivo
+   * Processa arquivo Excel a partir de buffer
+   * @param {Buffer} fileBuffer - Buffer do arquivo
+   * @param {string} fileName - Nome do arquivo
    * @returns {Object} Schema e dados de amostra
    */
-  async processExcel(filePath) {
+  async processExcel(fileBuffer, fileName) {
     try {
-      const workbook = XLSX.readFile(filePath);
+      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const schemas = {};
       const sampleData = {};
 
@@ -109,13 +113,14 @@ class FileProcessorService {
   }
 
   /**
-   * Processa arquivo SQL e extrai estrutura
-   * @param {string} filePath - Caminho do arquivo
+   * Processa arquivo SQL a partir de buffer
+   * @param {Buffer} fileBuffer - Buffer do arquivo
+   * @param {string} fileName - Nome do arquivo
    * @returns {Object} Schema extraído do SQL
    */
-  async processSQL(filePath) {
+  async processSQL(fileBuffer, fileName) {
     try {
-      const sqlContent = await fs.readFile(filePath, 'utf8');
+      const sqlContent = fileBuffer.toString('utf8');
       const schema = this.parseSQLSchema(sqlContent);
       
       return {
@@ -129,13 +134,14 @@ class FileProcessorService {
   }
 
   /**
-   * Processa arquivo JSON e gera schema
-   * @param {string} filePath - Caminho do arquivo
+   * Processa arquivo JSON a partir de buffer
+   * @param {Buffer} fileBuffer - Buffer do arquivo
+   * @param {string} fileName - Nome do arquivo
    * @returns {Object} Schema e dados de amostra
    */
-  async processJSON(filePath) {
+  async processJSON(fileBuffer, fileName) {
     try {
-      const jsonContent = await fs.readFile(filePath, 'utf8');
+      const jsonContent = fileBuffer.toString('utf8');
       const data = JSON.parse(jsonContent);
       
       let schema = {};
@@ -154,7 +160,7 @@ class FileProcessorService {
           });
 
           schema = {
-            [path.basename(filePath, '.json')]: {
+            [path.basename(fileName, '.json')]: {
               columns,
               type: 'table',
               source: 'json_upload'
@@ -302,21 +308,22 @@ class FileProcessorService {
   }
 
   /**
-   * Processa arquivo baseado no tipo
-   * @param {string} filePath - Caminho do arquivo
+   * Processa arquivo baseado no tipo usando buffer
+   * @param {Buffer} fileBuffer - Buffer do arquivo
+   * @param {string} fileName - Nome do arquivo
    * @param {string} fileType - Tipo do arquivo
    * @returns {Object} Resultado do processamento
    */
-  async processFile(filePath, fileType) {
+  async processFile(fileBuffer, fileName, fileType) {
     switch (fileType) {
       case 'csv':
-        return await this.processCSV(filePath);
+        return await this.processCSV(fileBuffer, fileName);
       case 'excel':
-        return await this.processExcel(filePath);
+        return await this.processExcel(fileBuffer, fileName);
       case 'sql':
-        return await this.processSQL(filePath);
+        return await this.processSQL(fileBuffer, fileName);
       case 'json':
-        return await this.processJSON(filePath);
+        return await this.processJSON(fileBuffer, fileName);
       default:
         throw new Error(`Tipo de arquivo não suportado: ${fileType}`);
     }
