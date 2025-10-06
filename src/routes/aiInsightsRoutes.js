@@ -162,7 +162,7 @@ router.post('/', authMiddleware, async (req, res) => {
         user_id: req.user.id,
         interaction_type: 'insight',
         input_text: `Análise geral do banco: ${database.name}`,
-        status: 'processing'
+        execution_status: 'pending'
       }
     });
 
@@ -193,9 +193,9 @@ router.post('/', authMiddleware, async (req, res) => {
       await prisma.ai_interactions.update({
         where: { id: interaction.id },
         data: {
-          status: 'error',
+          execution_status: 'error',
           error_message: error.response?.data?.message || error.message,
-          execution_time: executionTime
+          execution_time_ms: executionTime
         }
       });
 
@@ -210,9 +210,9 @@ router.post('/', authMiddleware, async (req, res) => {
     await prisma.ai_interactions.update({
       where: { id: interaction.id },
       data: {
-        status: 'completed',
-        output_text: response.data.gemini_response,
-        execution_time: executionTime
+        execution_status: 'success',
+        ai_response: { gemini_response: response.data.gemini_response },
+        execution_time_ms: executionTime
       }
     });
 
@@ -307,7 +307,7 @@ router.post('/specific', authMiddleware, async (req, res) => {
         user_id: req.user.id,
         interaction_type: 'insight',
         input_text: `${insight_type} para o banco: ${database.name}`,
-        status: 'processing'
+        execution_status: 'pending'
       }
     });
 
@@ -339,9 +339,9 @@ router.post('/specific', authMiddleware, async (req, res) => {
       await prisma.ai_interactions.update({
         where: { id: interaction.id },
         data: {
-          status: 'error',
+          execution_status: 'error',
           error_message: error.response?.data?.message || error.message,
-          execution_time: executionTime
+          execution_time_ms: executionTime
         }
       });
 
@@ -357,9 +357,9 @@ router.post('/specific', authMiddleware, async (req, res) => {
       await prisma.ai_interactions.update({
         where: { id: interaction.id },
         data: {
-          status: 'error',
+          execution_status: 'error',
           error_message: 'Resposta inválida da API de insights',
-          execution_time: executionTime
+          execution_time_ms: executionTime
         }
       });
       return res.status(500).json({ error: 'Resposta inválida da API de insights' });
@@ -369,9 +369,9 @@ router.post('/specific', authMiddleware, async (req, res) => {
     await prisma.ai_interactions.update({
       where: { id: interaction.id },
       data: {
-        status: 'completed',
-        output_text: response.data.gemini_response,
-        execution_time: executionTime
+        execution_status: 'success',
+        ai_response: { gemini_response: response.data.gemini_response },
+        execution_time_ms: executionTime
       }
     });
 
