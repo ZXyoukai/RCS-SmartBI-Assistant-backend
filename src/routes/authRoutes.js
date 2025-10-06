@@ -109,7 +109,7 @@ router.post('/register', async (req, res) => {
         user_email: user.email,
         user_role: user.role,
         activation_link: `http://localhost:3000/activate-account?token=${activationToken}`,
-        temp_password: tempPassword,
+        user_password: tempPassword,
         expiry_time: expiresAt,
       };
       const response = await axios.post(process.env.APPS_EMAIL_SERVICE, data, {
