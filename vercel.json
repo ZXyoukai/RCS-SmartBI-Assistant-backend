@@ -18,11 +18,5 @@
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "true"
   },
-  "functions": {
-    "src/app.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  },
   "regions": ["iad1"]
 }
