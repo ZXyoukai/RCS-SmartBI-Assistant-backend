@@ -102,12 +102,11 @@ router.post('/register', async (req, res) => {
     // Envia email com senha temporária e link de ativação
     try {
 
-
       const data = {
         subject: 'Criação de Conta - Ação Necessária',
         user_name: user.name,
         user_email: user.email,
-        user_role: user.role,
+        user_role: "pendent-user",
         activation_link: `http://localhost:3000/activate-account?token=${activationToken}`,
         user_password: tempPassword,
         expiry_time: expiresAt,
