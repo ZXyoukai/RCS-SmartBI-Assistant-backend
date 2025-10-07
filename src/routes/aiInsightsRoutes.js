@@ -183,7 +183,6 @@ router.post('/', authMiddleware, async (req, res) => {
         data,
         {
           headers: { 'Content-Type': 'application/json' },
-          timeout: 30000 // 30 segundos de timeout
         }
       );
 
@@ -202,7 +201,6 @@ router.post('/', authMiddleware, async (req, res) => {
       console.error('Erro ao chamar API de insights:', error.response?.data || error.message);
       return res.status(500).json({ error: 'Erro interno do servidor ao gerar insights' });
     }
-
     // 4. Calcular tempo de execução
     const executionTime = Date.now() - startTime;
 
@@ -222,6 +220,7 @@ router.post('/', authMiddleware, async (req, res) => {
         interaction_id: interaction.id,
         user_id: req.user.id,
         insight_type,
+        downloadlink: `${process.env.INSIGHTS_API}/${response.data.pdf_path}`,
         title,
         description: response.data.gemini_response,
         data_analysis,
@@ -234,6 +233,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
     res.status(201).json({
       insight,
+      file_name: response.data.pdf_filename,
       session: {
         id: session.id,
         session_token: session.session_token
@@ -374,7 +374,6 @@ router.post('/specific', authMiddleware, async (req, res) => {
         execution_time_ms: executionTime
       }
     });
-
     // 7. Criar insight
     const insight = await prisma.ai_insights.create({
       data: {
