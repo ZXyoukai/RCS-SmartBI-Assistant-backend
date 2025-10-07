@@ -164,7 +164,7 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
 
-    const insight_type = "Database Analysis";
+    const insight_type = "Database_Analysis";
     const title = insight_type + ' General';
     const confidence_level = "high";
     const impact_score = randomInt(70, 100);
