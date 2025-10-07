@@ -40,13 +40,23 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const user = await userService.updateUser(id, req.body);
+
+    const data = { ...req.body };
+
+    if (data.password) {
+      const password_hash = await userService.hashPassword(data.password);
+      delete data.password;
+      data.password_hash = password_hash;
+    }
+
+    const user = await userService.updateUser(id, data);
     res.json(user);
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
+
 
 exports.deleteUser = async (req, res) => {
   try {

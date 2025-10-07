@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const bcrypt = require('bcrypt');
 
 exports.getAllUsers = async () => {
   try {
@@ -88,3 +89,7 @@ exports.getUserById = async (id) => {
   }
 };
 
+exports.hashPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return await bcrypt.hash(password, salt);
+};
