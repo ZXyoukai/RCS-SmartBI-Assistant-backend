@@ -84,7 +84,7 @@ router.post('/register', async (req, res) => {
         email: email.toLowerCase(),
         password_hash,
         role: 'user',
-        is_active: false,
+        is_active: true,
         activation_token: {
           create: {
             token: activationToken,
