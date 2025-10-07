@@ -6,7 +6,6 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const { randomInt } = require('crypto');
 const { default: axios } = require('axios');
 
-// Listar insights do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const {
@@ -17,15 +16,15 @@ router.get('/', authMiddleware, async (req, res) => {
       status,
       active_only = true
     } = req.query;
-    const offset = (page - 1) * limit;
 
+    // 🔹 Construção do filtro base
     const whereClause = { user_id: req.user.id };
     if (insight_type) whereClause.insight_type = insight_type;
     if (confidence_level) whereClause.confidence_level = confidence_level;
     if (status) whereClause.status = status;
     if (active_only === 'true') whereClause.status = 'active';
 
-    // Filtrar insights não expirados se não especificado
+    // 🔹 Filtrar insights não expirados se não especificado
     if (!status) {
       whereClause.OR = [
         { expires_at: null },
@@ -33,7 +32,52 @@ router.get('/', authMiddleware, async (req, res) => {
       ];
     }
 
-    const insights = await prisma.ai_insights.findMany({
+    let insights;
+    let total;
+
+    // 🔹 Se "page=all", ignora a paginação
+    if (page === 'all') {
+      insights = await prisma.ai_insights.findMany({
+        where: whereClause,
+        orderBy: [
+          { impact_score: 'desc' },
+          { created_at: 'desc' }
+        ],
+        include: {
+          interaction: {
+            select: {
+              id: true,
+              interaction_type: true,
+              input_text: true,
+              created_at: true,
+              session: {
+                select: {
+                  id: true,
+                  session_token: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      total = insights.length;
+
+      return res.json({
+        data: insights,
+        pagination: {
+          current_page: 'all',
+          total_pages: 1,
+          total_items: total,
+          items_per_page: total
+        }
+      });
+    }
+
+    // 🔹 Caso contrário, aplica paginação normal
+    const offset = (page - 1) * limit;
+
+    insights = await prisma.ai_insights.findMany({
       where: whereClause,
       orderBy: [
         { impact_score: 'desc' },
@@ -59,7 +103,7 @@ router.get('/', authMiddleware, async (req, res) => {
       }
     });
 
-    const total = await prisma.ai_insights.count({ where: whereClause });
+    total = await prisma.ai_insights.count({ where: whereClause });
 
     res.json({
       data: insights,
@@ -75,6 +119,7 @@ router.get('/', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
+
 
 // Buscar insight por ID
 router.get('/:id', authMiddleware, async (req, res) => {
