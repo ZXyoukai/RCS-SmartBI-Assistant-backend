@@ -134,6 +134,7 @@ model ai_insights {
   interaction_id   Int?
   user_id          Int
   insight_type     String    // trend_analysis, prediction, recommendation, pattern_detection
+  downloadlink    String?   // Link para download do insight
   title            String
   description      String
   data_analysis    Json      // Dados da análise
